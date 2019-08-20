@@ -1,6 +1,9 @@
 # Kenwood
 Files related to Kenwood radios
 ## 710.sh  
+
+VERSION 20180820
+
 This script provides CAT control of a Kenwood TM-D710G or TM-V71A radio on a Raspberry Pi.  
 It requires a serial/USB cable between the radio and the Pi.  An RT Systems programming cable will work, as will a Kenwood PG-5G or equivalent.  
 
@@ -22,7 +25,6 @@ It requires a serial/USB cable between the radio and the Pi.  An RT Systems prog
 		rm -rf kenwood/
 		git clone https://github.com/AG7GN/kenwood
 		cd kenwood
-		chmod +x 710.sh  
 	
 - Open `710.sh` in a text editor and locate this line:  
 

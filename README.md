@@ -26,9 +26,10 @@ It requires a serial/USB cable between the radio and the Pi.  An RT Systems prog
 
 		PORT="$(ls -l $DIR 2>/dev/null | grep USB-Serial)"
     
-  If necessary, change the __USB-Serial__ substring to look for in /dev/serial/by-id to match your cable's ID.  
+  If necessary, change the __USB-Serial__ string to look for to match your cable's ID.  
+- Save the file and exit the editor.
   
-- Copy the script to /usr/local/bin:
+- Copy the script to `/usr/local/bin`:
   
 		sudo cp 710.sh /usr/local/bin  
 

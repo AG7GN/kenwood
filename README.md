@@ -19,9 +19,11 @@ It requires a serial/USB cable between the radio and the Pi.  An RT Systems prog
 - Run these commands in the Terminal:
 
 		cd ~
+		rm -rf kenwood/
 		git clone https://github.com/AG7GN/kenwood
 		cd kenwood
 		chmod +x 710.sh  
+	
 - Open `710.sh` in a text editor and locate this line:  
 
 		PORT="$(ls -l $DIR 2>/dev/null | grep USB-Serial)"

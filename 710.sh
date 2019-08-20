@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# This script provides CAT control for Kenwood TM-D710G and TM-V71A radios.
-# It requires Hamib and bc, and a serial connection to the radio.
+# Script to control Kenwood TM-V71A and TM-D710G radios via CAT commands.
+# Author: Steve Magnuson, AG7GN
 
-VER=4.1
+VERSION=4.3
 DEV=234
 SPEED=57600
 DIR="/dev/serial/by-id"
@@ -30,34 +30,34 @@ SIDE[A]=0
 SIDE[B]=1
 
 Usage () {
-	[[ "$1" == "" ]] || echo "ERROR: $1"
+   [[ "$1" == "" ]] || echo "ERROR: $1"
+   echo
+	echo "Version $VERSION"
 	echo
-	echo "Version $VER"
-	echo
-	echo "CAT control script for Kenwood TM-D710G/TM-V71A."
+   echo "CAT control script for Kenwood TM-D710G/TM-V71A."
 	echo "Set radio's PC port speed to $SPEED or change SPEED setting in"
 	echo "this script to match radio's setting."
-	echo
-	echo "Usage:"
-	echo
-	echo "${0##*/} get apo                 Prints Auto Power Off setting"
-	echo "${0##*/} get data                Prints the side configured for external data"
-	echo "${0##*/} get info                Prints some radio settings"
-	echo "${0##*/} get memory <channel>    Prints memory channel configuration"
+   echo
+   echo "Usage:"
+   echo
+   echo "${0##*/} get apo                 Prints Auto Power Off setting"
+   echo "${0##*/} get data                Prints the side configured for external data"
+   echo "${0##*/} get info                Prints some radio settings"
+   echo "${0##*/} get memory <channel>    Prints memory channel configuration"
 	echo "${0##*/} get menu                Prints raw menu contents output (diagnostic command)"
-	echo "${0##*/} get mode                Prints mode (modulation) settings"
-	echo "${0##*/} get power               Prints power settings"
-	echo "${0##*/} get pttctrl             Prints PTT and CTRL settings"
+   echo "${0##*/} get mode                Prints mode (modulation) settings"
+   echo "${0##*/} get power               Prints power settings"
+   echo "${0##*/} get pttctrl             Prints PTT and CTRL settings"
 	echo "${0##*/} get speed               Prints external data speed (1200|9600)"
 	echo "${0##*/} get sqc                 Prints SQC source"
-	echo "${0##*/} get a|b squelch         Prints squelch settings for side A or B"
-	echo "${0##*/} get timeout             Prints TX timeout setting"
+   echo "${0##*/} get a|b squelch         Prints squelch settings for side A or B"
+   echo "${0##*/} get timeout             Prints TX timeout setting"
 	echo
 	echo "${0##*/} set apo off|30|60|90|120|180     Sets Automatic Power Off (minutes)"
-	echo "${0##*/} set a|b ctrl            Sets CTRL to side A or B"
-	echo "${0##*/} set a|b data            Sets external data to side A or B"
-	echo "${0##*/} set a|b freq <MHz>      Sets side A or B to VFO and sets frequency to <MHz>"
-	echo "${0##*/} set a|b memory <memory>"
+   echo "${0##*/} set a|b ctrl            Sets CTRL to side A or B"
+   echo "${0##*/} set a|b data            Sets external data to side A or B"
+   echo "${0##*/} set a|b freq <MHz>      Sets side A or B to VFO and sets frequency to <MHz>"
+   echo "${0##*/} set a|b memory <memory>"
    echo "                               Sets side A or B to memory mode and assigns"
    echo "                               <memory> location to it"
    echo "${0##*/} set a|b mode vfo|memory|call|wx"
@@ -185,15 +185,15 @@ PrintFreq () {
       echo "Side: ${S[${F[0]}]}" 
    fi
    echo "Frequency: $(PrintMHz ${F[1]})"
-	echo "Step Size: ${SS[$((10#${F[2]}))]} KHz"
-	echo "Shift Direction: ${SD[$((10#${F[3]}))]}"
+   echo "Step Size: ${SS[$((10#${F[2]}))]} KHz"
+   echo "Shift Direction: ${SD[$((10#${F[3]}))]}"
    echo "Reverse: ${L[${F[4]}]}"
    echo "Tone Status: ${L[${F[5]}]}"
    echo "CTCSS Status: ${L[${F[6]}]}"
    echo "DCS Status: ${L[${F[7]}]}"
-	echo "Tone Frequency: ${TF[$((10#${F[8]}))]} Hz"
-	echo "CTCSS Frequency: ${TF[$((10#${F[9]}))]} Hz"
-	echo "DCS Frequency: ${DCS[$((10#${F[10]}))]} Hz" 
+   echo "Tone Frequency: ${TF[$((10#${F[8]}))]} Hz"
+   echo "CTCSS Frequency: ${TF[$((10#${F[9]}))]} Hz"
+   echo "DCS Frequency: ${DCS[$((10#${F[10]}))]} Hz" 
    echo "Offset Frequency: $(PrintMHz ${F[11]})"
    echo "Modulation: ${M[${F[12]}]}" 
    if [[ "$2" == "ME" ]]
@@ -443,11 +443,12 @@ case "$P3" in
             ANS="$(GetSet "FO ${SIDE[$P2]}")" 
             PrintFreq "$ANS" "FO"
             ANS="$(GetSet "VM ${SIDE[$P2]}")" 
-            echo -n "Side $P2 is in ${MODE1[$ANS]} mode"
+            echo -n "Side $P2 is in ${MODE1[$ANS]} mode.  "
 				if [[ ${MODE1[$ANS]} == "Memory" ]]
 				then
 					ANS="$(GetSet "MR ${SIDE[$P2]}")"
-					echo ": Memory location ${ANS#*,}"
+					ANS="$(GetSet "MN ${ANS#*,}")"
+					echo "Memory location: $ANS"
 				else
 					echo
 				fi
@@ -613,3 +614,5 @@ case "$P3" in
       Usage "Valid options are FREQUENCY, POWER, PTT, CTRL and COMMAND" 
       exit 1
 esac
+ 
+

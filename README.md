@@ -24,7 +24,6 @@ It requires a serial/USB cable between the radio and the Pi.  An RT Systems prog
 		cd ~
 		rm -rf kenwood/
 		git clone https://github.com/AG7GN/kenwood
-		cd kenwood
 	
 - Open `710.sh` in a text editor and locate this line:  
 
@@ -35,7 +34,7 @@ It requires a serial/USB cable between the radio and the Pi.  An RT Systems prog
   
 - Copy the script to `/usr/local/bin`:
   
-		sudo cp 710.sh /usr/local/bin  
+		sudo cp kenwood/710.sh /usr/local/bin  
 
 ### Run
 - Open a terminal and run:

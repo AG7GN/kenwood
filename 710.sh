@@ -3,11 +3,11 @@
 # Script to control Kenwood TM-V71A and TM-D710G radios via CAT commands.
 # Author: Steve Magnuson, AG7GN
 
-VERSION=4.3
+VERSION=4.4
 DEV=234
 SPEED=57600
 DIR="/dev/serial/by-id"
-PORT="$(ls -l $DIR 2>/dev/null | grep USB-Serial)"
+PORT="$(ls -l $DIR 2>/dev/null | grep -i "USB-Serial\|RT_Systems")"
 PORT="$(echo "$PORT" | cut -d '>' -f2 | tr -d ' ./')"
 [[ "$PORT" == "" ]] && { echo "Unable to find serial port connection to radio"; exit 1; }
 PORT="/dev/${PORT}"

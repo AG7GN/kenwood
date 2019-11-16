@@ -3,7 +3,7 @@
 # Script to control Kenwood TM-V71A and TM-D710G radios via CAT commands.
 # Author: Steve Magnuson, AG7GN
 
-VERSION=4.5
+VERSION=4.5.1
 DEV=234
 SPEED=57600
 DIR="/dev/serial/by-id"
@@ -47,6 +47,8 @@ then # User did not supply serial port.  Search for it using $PORTSTRING
 fi
 
 RIGCTL="$(command -v rigctl) -m $DEV -r $PORT -s $SPEED"
+
+$RIGCTL get_info >/dev/null || { echo "Unable to communicate with radio via $PORT @ $SPEED bps.  Check serial port and speed."; exit 1; }
 
 declare -A MINFREQ
 declare -A MAXFREQ

@@ -3,20 +3,50 @@
 # Script to control Kenwood TM-V71A and TM-D710G radios via CAT commands.
 # Author: Steve Magnuson, AG7GN
 
-VERSION=4.4
+VERSION=4.4.1
 DEV=234
 SPEED=57600
 DIR="/dev/serial/by-id"
-PORT="$(ls -l $DIR 2>/dev/null | grep -i "USB-Serial\|RT_Systems")"
-PORT="$(echo "$PORT" | cut -d '>' -f2 | tr -d ' ./')"
-[[ "$PORT" == "" ]] && { echo "Unable to find serial port connection to radio"; exit 1; }
-PORT="/dev/${PORT}"
+PORTSTRING="USB-Serial|RT_Systems"
 
-RIGCTL="$(which rigctl)"
-[[ "$RIGCTL" == "" ]] && { echo "Cannot find rigctl application.  Install hamlib."; exit 1; }
-RIGCTL="$RIGCTL -m $DEV -r $PORT -s $SPEED"
+command -v bc >/dev/null || { echo "Cannot find bc application.  To install it, run: sudo apt update && sudo apt install -y bc"; exit 1; }
+command -v rigctl >/dev/null || { echo "Cannot find rigctl application.  Install hamlib."; exit 1; }
 
-which bc >/dev/null || { echo "Cannot find bc application.  To install it, run: sudo apt update && sudo apt install -y bc"; exit 1; }
+# Check if user supplied serial port
+declare -a ARGS
+PORT=""
+while [ $# -gt 0 ]
+do
+   unset OPTIND
+   unset OPTARG
+   #while getopts as:c:  OPTIONS
+   while getopts p:  OPTIONS
+   do
+      case $OPTIONS in
+         p)
+            PORT="$OPTARG"
+         ;;
+      esac
+   done
+   shift $((OPTIND-1))
+   ARGS+=($1)
+   shift
+done
+
+P1="${ARGS[0]^^}"
+P2="${ARGS[1]^^}"
+P3="${ARGS[2]^^}"
+P4="${ARGS[3]^^}"
+
+if [[ $PORT == "" ]]
+then # User did not supply serial port.  Search for it using $PORTSTRING
+	PORT="$(ls -l $DIR 2>/dev/null | egrep -i "$PORTSTRING")"
+	PORT="$(echo "$PORT" | cut -d '>' -f2 | tr -d ' ./')"
+	[[ "$PORT" == "" ]] && { echo "Unable to find serial port connection to radio"; exit 1; }
+	PORT="/dev/${PORT}"
+fi
+
+RIGCTL="$(command -v rigctl) -m $DEV -r $PORT -s $SPEED"
 
 declare -A MINFREQ
 declare -A MAXFREQ
@@ -40,7 +70,7 @@ Usage () {
    echo
    echo "Usage:"
    echo
-   echo "${0##*/} get apo                 Prints Auto Power Off setting"
+   echo "${0##*/} get apo						Prints Auto Power Off setting"
    echo "${0##*/} get data                Prints the side configured for external data"
    echo "${0##*/} get info                Prints some radio settings"
    echo "${0##*/} get memory <channel>    Prints memory channel configuration"
@@ -70,6 +100,14 @@ Usage () {
 	echo "${0##*/} set timeout 3|5|10      Sets transmit timeout (minutes)"
    echo
 	echo "${0##*/} help                    Prints this help screen"
+	echo
+	echo "You can optionally supply the serial port used to connect to your radio.  For example:"
+	echo
+	echo "${0##*/} -p /dev/ttyUSB0 set timeout 3"
+	echo
+	echo "If you do not supply a serial port with the -p option, the script will search for"
+	echo "a serial port in $DIR using this grep string: $PORTSTRING."
+	echo "You can change this string by editing the PORTSTRING variable in this script." 
 	echo
 }
 
@@ -203,10 +241,6 @@ PrintFreq () {
       echo "Lockout: ${L[${F[15]}]}"
    fi
 }
-
-P1="${1^^}"
-P2="${2^^}"
-P3="${3^^}"
 
 case "$P1" in
    GET)
@@ -454,7 +488,7 @@ case "$P3" in
 				fi
             ;;
          SET)
-            FR=$(printf "%0.f" $(bc -l <<< "$4*1000000"))
+            FR=$(printf "%0.f" $(bc -l <<< "$P4*1000000"))
             if (( $FR <= ${MAXFREQ[$P2]} )) && (( $FR >= ${MINFREQ[$P2]} ))
             then
                ANS="$(GetSet "VM ${SIDE[$P2]},0")" # Set side to VFO before setting frequency
@@ -481,7 +515,6 @@ case "$P3" in
 				fi
             ;;
          SET)
-            P4="${4^^}"
             case "$P4" in
                VFO)
                   M=0
@@ -516,7 +549,6 @@ case "$P3" in
          SET)
             declare -A POWER
             POWER[H]=0; POWER[M]=1; POWER[L]=2
-            P4="${4^^}"
             case "$P4" in
                H|M|L)
                   ANS="$(GetSet "PC ${SIDE[$P2]},${POWER[$P4]}")"
@@ -536,7 +568,6 @@ case "$P3" in
             echo "Side $P2 squelch is at $((16#${ANS#*,})) out of 31"
             ;;
          SET)
-            P4="$4"
             if ((P4>=0 && P4<=31))
             then
                P4="$(printf "%02X" $P4)"
@@ -589,7 +620,6 @@ case "$P3" in
 		$0 GET DATA
 		;;
    MEM*)
-      P4="$4"
       if ((P4>=0 && P4<=999))
       then
          ANS="$(GetSet "ME $(printf "%03d" $((10#$P4)))")"

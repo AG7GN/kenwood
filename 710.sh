@@ -3,7 +3,7 @@
 # Script to control Kenwood TM-V71A and TM-D710G radios via CAT commands.
 # Author: Steve Magnuson, AG7GN
 
-VERSION=4.4.1
+VERSION=4.5
 DEV=234
 SPEED=57600
 DIR="/dev/serial/by-id"

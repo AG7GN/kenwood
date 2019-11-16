@@ -3,7 +3,7 @@
 # Script to control Kenwood TM-V71A and TM-D710G radios via CAT commands.
 # Author: Steve Magnuson, AG7GN
 
-VERSION=4.5.1
+VERSION=4.5.2
 DEV=234
 SPEED=57600
 DIR="/dev/serial/by-id"
@@ -236,7 +236,7 @@ PrintFreq () {
    echo "DCS Frequency: ${DCS[$((10#${F[10]}))]} Hz" 
    echo "Offset Frequency: $(PrintMHz ${F[11]})"
    echo "Modulation: ${M[${F[12]}]}" 
-   if [[ "$2" == "ME" ]]
+   if [[ $2 == "ME" ]]
    then
       #echo "Frequency?: $(PrintMHz ${F[13]})"
       #echo "Unknown Parameter: ${F[14]}"

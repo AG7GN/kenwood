@@ -3,11 +3,13 @@
 # Script to control Kenwood TM-V71A and TM-D710G radios via CAT commands.
 # Author: Steve Magnuson, AG7GN
 
-VERSION=4.5.2
+VERSION=4.6.0
 DEV=234
 SPEED=57600
 DIR="/dev/serial/by-id"
-PORTSTRING="USB-Serial|RT_Systems"
+# The following PORTSTRING will be used if the '-s PORTSTRING' argument is not supplied
+DEFAULT_PORTSTRING="USB-Serial|RT_Systems"
+PORTSTRING="$DEFAULT_PORTSTRING"
 
 command -v bc >/dev/null || { echo "Cannot find bc application.  To install it, run: sudo apt update && sudo apt install -y bc"; exit 1; }
 command -v rigctl >/dev/null || { echo "Cannot find rigctl application.  Install hamlib."; exit 1; }
@@ -20,12 +22,15 @@ do
    unset OPTIND
    unset OPTARG
    #while getopts as:c:  OPTIONS
-   while getopts p:  OPTIONS
+   while getopts p:s:  OPTIONS
    do
       case $OPTIONS in
          p)
             PORT="$OPTARG"
-         ;;
+         	;;
+         s)
+         	PORTSTRING="$OPTARG"
+         	;;
       esac
    done
    shift $((OPTIND-1))
@@ -38,11 +43,12 @@ P2="${ARGS[1]^^}"
 P3="${ARGS[2]^^}"
 P4="${ARGS[3]^^}"
 
+# If '-p PORT' is supplied, ignore PORTSTRING.
 if [[ $PORT == "" ]]
 then # User did not supply serial port.  Search for it using $PORTSTRING
 	PORT="$(ls -l $DIR 2>/dev/null | egrep -i "$PORTSTRING")"
 	PORT="$(echo "$PORT" | cut -d '>' -f2 | tr -d ' ./')"
-	[[ "$PORT" == "" ]] && { echo "Unable to find serial port connection to radio"; exit 1; }
+	[[ "$PORT" == "" ]] && { echo "Unable to find serial port connection to radio using search string '$PORTSTRING'"; exit 1; }
 	PORT="/dev/${PORT}"
 fi
 
@@ -107,9 +113,16 @@ Usage () {
 	echo
 	echo "${0##*/} -p /dev/ttyUSB0 set timeout 3"
 	echo
-	echo "If you do not supply a serial port with the -p option, the script will search for"
-	echo "a serial port in $DIR using this grep string: $PORTSTRING."
-	echo "You can change this string by editing the PORTSTRING variable in this script." 
+	echo "You can optionally supply a string to grep for in $DIR to determine the serial port"
+	echo "used to connect to your radio.  For example:"
+	echo
+	echo "${0##*/} -s RT_Systems get info"
+	echo
+	echo "If you do not supply a serial port with the -p option, or specify a string via '-s PORTSTRING'"
+	echo "to search for in order to determine the port, the script will search for a serial port in $DIR"
+	echo "using this grep string: $DEFAULT_PORTSTRING."
+	echo
+	echo "If a port is supplied using '-p PORT', it will take precedence over the search string."
 	echo
 }
 

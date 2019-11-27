@@ -3,7 +3,7 @@
 # Script to control Kenwood TM-V71A and TM-D710G radios via CAT commands.
 # Author: Steve Magnuson, AG7GN
 
-VERSION=4.6.0
+VERSION=4.6.1
 DEV=234
 SPEED=57600
 DIR="/dev/serial/by-id"
@@ -339,7 +339,6 @@ case "$P1" in
             exit 0
             ;;
          MEM*)
-            P3="$3"
             if ((P3>=0 && P3<=999))
             then
                ANS="$(GetSet "ME $(printf "%03d" $((10#$P3)))")"

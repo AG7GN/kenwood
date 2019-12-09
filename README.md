@@ -46,5 +46,5 @@ Alternatively, you optionally supply a string to grep for in `/dev/serial/by-id`
 
 	tnc.sh -s RT_Systems get info
 
-If a port is supplied using `-p PORT`, it will take precedence over a `-s PORTSTRING` search string."
+If a port is supplied using `-p PORT`, it will take precedence over a string supplied by `-s PORTSTRING`."
 

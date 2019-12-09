@@ -2,42 +2,47 @@
 Files related to Kenwood radios
 ## 710.sh  
 
-VERSION 20180820
+VERSION 20191209
 
-This script provides CAT control of a Kenwood TM-D710G or TM-V71A radio on a Raspberry Pi.  
-It requires a serial/USB cable between the radio and the Pi.  An RT Systems programming cable will work, as will a Kenwood PG-5G or equivalent.  
+This script provides CAT control of a Kenwood TM-D710G or TM-V71A radio on a Raspberry Pi. It requires a serial/USB cable between the radio and the Pi.  An RT Systems programming cable will work, as will a Kenwood PG-5G or equivalent.  
 
-### Installation  
+## Easy Installation  
 - Make sure your Pi is connected to the Internet.
-- Connect your radio's serial cable to your Pi.
-- Open a Terminal and run these commands:
+- Click __Raspberry > Hamradio > Update Pi and Ham Apps__.
+- Check __710.sh__, click __OK__.
 
-		ls -l /dev/serial/by-id
-	For example:
-	
-		pi@gokitpi:/dev/serial/by-id $ ls -l  
-		total 0
-		lrwxrwxrwx 1 root root 13 May 21 20:31 usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0 -> ../../ttyUSB0  
-- Locate a part of that string that uniquely identifies the serial port.  In this example, __USB-Serial__ would work.
-- Run these commands in the Terminal:
+## Manual Installation
+
+- Open a Terminal and run these commands:
 
 		cd ~
 		rm -rf kenwood/
 		git clone https://github.com/AG7GN/kenwood
-	
-- Open `710.sh` in a text editor and locate this line:  
+		sudo cp kenwood/710.sh /usr/local/bin/
 
-		PORT="$(ls -l $DIR 2>/dev/null | grep USB-Serial)"
-    
-  If necessary, change the __USB-Serial__ string to look for to match your cable's ID.  
-- Save the file and exit the editor.
-  
-- Copy the script to `/usr/local/bin`:
-  
-		sudo cp kenwood/710.sh /usr/local/bin  
-
-### Run
+## Run
 - Open a terminal and run:
   
 		710.sh  
 	and follow the instructions.  
+
+By default, the script will look for USB-serial cables (represented as files) in `/dev/serial/by-id`.  If any of the devices listed have filenames that contain any of these strings, then the script should automatically select and use that cable to communicate with the radio:
+
+		USB-Serial
+
+		RT_Systems
+
+		usb-FTDI
+
+## Notes
+
+You can optionally supply the serial port used to connect to your radio using the `-p PORT` argument.  For example:
+
+	tnc.sh -p /dev/ttyUSB0 set timeout 3
+
+Alternatively, you optionally supply a string to grep for in `/dev/serial/by-id` to determine the serial port used to connect to your radio using the `-s PORTSTRING` argument.  For example:
+
+	tnc.sh -s RT_Systems get info
+
+If a port is supplied using `-p PORT`, it will take precedence over a `-s PORTSTRING` search string."
+

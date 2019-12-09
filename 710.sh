@@ -3,12 +3,12 @@
 # Script to control Kenwood TM-V71A and TM-D710G radios via CAT commands.
 # Author: Steve Magnuson, AG7GN
 
-VERSION=4.6.1
+VERSION=4.6.2
 DEV=234
 SPEED=57600
 DIR="/dev/serial/by-id"
 # The following PORTSTRING will be used if the '-s PORTSTRING' argument is not supplied
-DEFAULT_PORTSTRING="USB-Serial|RT_Systems"
+DEFAULT_PORTSTRING="USB-Serial|RT_Systems|usb-FTDI"
 PORTSTRING="$DEFAULT_PORTSTRING"
 
 command -v bc >/dev/null || { echo "Cannot find bc application.  To install it, run: sudo apt update && sudo apt install -y bc"; exit 1; }

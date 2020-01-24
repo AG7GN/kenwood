@@ -3,7 +3,7 @@
 # Script to control Kenwood TM-V71A and TM-D710G radios via CAT commands.
 # Author: Steve Magnuson, AG7GN
 
-VERSION=4.7.4
+VERSION=4.7.5
 DEV=234
 SPEED=57600
 DIR="/dev/serial/by-id"
@@ -111,7 +111,7 @@ if [[ $PORT == "" ]]
 then # User did not supply serial port.  Search for it using $PORTSTRING
 	PORT="$(ls -l $DIR 2>/dev/null | egrep -i "$PORTSTRING")"
 	PORT="$(echo "$PORT" | cut -d '>' -f2 | tr -d ' ./')"
-	[[ "$PORT" == "" ]] && Usage "Unable to find serial port connection to radio using search string '$PORTSTRING'"
+	[[ $PORT == "" ]] && Usage "Unable to find serial port connection to radio using search string '$PORTSTRING'"
 	PORT="/dev/${PORT}"
 fi
 

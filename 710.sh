@@ -3,7 +3,7 @@
 # Script to control Kenwood TM-V71A and TM-D710G radios via CAT commands.
 # Author: Steve Magnuson, AG7GN
 
-VERSION=4.6.2
+VERSION=4.7.4
 DEV=234
 SPEED=57600
 DIR="/dev/serial/by-id"
@@ -11,63 +11,8 @@ DIR="/dev/serial/by-id"
 DEFAULT_PORTSTRING="USB-Serial|RT_Systems|usb-FTDI"
 PORTSTRING="$DEFAULT_PORTSTRING"
 
-command -v bc >/dev/null || { echo "Cannot find bc application.  To install it, run: sudo apt update && sudo apt install -y bc"; exit 1; }
-command -v rigctl >/dev/null || { echo "Cannot find rigctl application.  Install hamlib."; exit 1; }
-
-# Check if user supplied serial port
-declare -a ARGS
-PORT=""
-while [ $# -gt 0 ]
-do
-   unset OPTIND
-   unset OPTARG
-   #while getopts as:c:  OPTIONS
-   while getopts p:s:  OPTIONS
-   do
-      case $OPTIONS in
-         p)
-            PORT="$OPTARG"
-         	;;
-         s)
-         	PORTSTRING="$OPTARG"
-         	;;
-      esac
-   done
-   shift $((OPTIND-1))
-   ARGS+=($1)
-   shift
-done
-
-P1="${ARGS[0]^^}"
-P2="${ARGS[1]^^}"
-P3="${ARGS[2]^^}"
-P4="${ARGS[3]^^}"
-
-# If '-p PORT' is supplied, ignore PORTSTRING.
-if [[ $PORT == "" ]]
-then # User did not supply serial port.  Search for it using $PORTSTRING
-	PORT="$(ls -l $DIR 2>/dev/null | egrep -i "$PORTSTRING")"
-	PORT="$(echo "$PORT" | cut -d '>' -f2 | tr -d ' ./')"
-	[[ "$PORT" == "" ]] && { echo "Unable to find serial port connection to radio using search string '$PORTSTRING'"; exit 1; }
-	PORT="/dev/${PORT}"
-fi
-
-RIGCTL="$(command -v rigctl) -m $DEV -r $PORT -s $SPEED"
-
-$RIGCTL get_info >/dev/null || { echo "Unable to communicate with radio via $PORT @ $SPEED bps.  Check serial port and speed."; exit 1; }
-
-declare -A MINFREQ
-declare -A MAXFREQ
-MINFREQ[A]="118000000"
-MINFREQ[B]="136000000"
-MAXFREQ[A]="524000000"
-MAXFREQ[B]="1300000000"
-
-declare -A SIDE
-SIDE[A]=0
-SIDE[B]=1
-
 Usage () {
+	echo
    [[ "$1" == "" ]] || echo "ERROR: $1"
    echo
 	echo "Version $VERSION"
@@ -113,8 +58,8 @@ Usage () {
 	echo
 	echo "${0##*/} -p /dev/ttyUSB0 set timeout 3"
 	echo
-	echo "You can optionally supply a string to grep for in $DIR to determine the serial port"
-	echo "used to connect to your radio.  For example:"
+	echo "Alternatively, you can optionally supply a string to grep for in $DIR to determine the"
+	echo "serial port used to connect to your radio.  For example:"
 	echo
 	echo "${0##*/} -s RT_Systems get info"
 	echo
@@ -124,7 +69,65 @@ Usage () {
 	echo
 	echo "If a port is supplied using '-p PORT', it will take precedence over the search string."
 	echo
+   [[ "$1" == "" ]] && exit 0 || exit 1
 }
+
+command -v bc >/dev/null || Usage "Cannot find bc application.  To install it, run: sudo apt update && sudo apt install -y bc"
+command -v rigctl >/dev/null || Usage "Cannot find rigctl application.  Install hamlib."
+
+# Check if user supplied serial port
+declare -a ARGS
+PORT=""
+while [ $# -gt 0 ]
+do
+   unset OPTIND
+   unset OPTARG
+   #while getopts as:c:  OPTIONS
+   while getopts p:s:  OPTIONS
+   do
+      case $OPTIONS in
+         p)
+            PORT="$OPTARG"
+         	;;
+         s)
+         	PORTSTRING="$OPTARG"
+         	;;
+      esac
+   done
+   shift $((OPTIND-1))
+   ARGS+=($1)
+   shift
+done
+
+P1="${ARGS[0]^^}"
+P2="${ARGS[1]^^}"
+P3="${ARGS[2]^^}"
+P4="${ARGS[3]^^}"
+
+[[ $P1 == "HELP" ]] && Usage
+
+# If '-p PORT' is supplied, ignore PORTSTRING.
+if [[ $PORT == "" ]]
+then # User did not supply serial port.  Search for it using $PORTSTRING
+	PORT="$(ls -l $DIR 2>/dev/null | egrep -i "$PORTSTRING")"
+	PORT="$(echo "$PORT" | cut -d '>' -f2 | tr -d ' ./')"
+	[[ "$PORT" == "" ]] && Usage "Unable to find serial port connection to radio using search string '$PORTSTRING'"
+	PORT="/dev/${PORT}"
+fi
+
+RIGCTL="$(command -v rigctl) -m $DEV -r $PORT -s $SPEED"
+$RIGCTL get_info >/dev/null || { echo "Unable to communicate with radio via $PORT @ $SPEED bps.  Check serial port and speed."; exit 1; }
+
+declare -A MINFREQ
+declare -A MAXFREQ
+MINFREQ[A]="118000000"
+MINFREQ[B]="136000000"
+MAXFREQ[A]="524000000"
+MAXFREQ[B]="1300000000"
+
+declare -A SIDE
+SIDE[A]=0
+SIDE[B]=1
 
 GetSet () {
    RESULT="$($RIGCTL w "$1")"
@@ -263,17 +266,17 @@ case "$P1" in
          INFO)
             echo "Model: $(GetSet "ID")"
             echo "Serial: $(GetSet "AE")"
-            $0 GET APO
-            $0 GET TIMEOUT
-            $0 GET PTTCTRL
-            $0 GET DATA
-            $0 GET SPEED
+            $0 -p $PORT GET APO
+            $0 -p $PORT GET TIMEOUT
+            $0 -p $PORT GET PTTCTRL
+            $0 -p $PORT GET DATA
+            $0 -p $PORT GET SPEED
             echo "------------------------------------"
-            $0 GET A FREQ
-            $0 GET A POWER
+            $0 -p $PORT GET A FREQ
+            $0 -p $PORT GET A POWER
             echo "------------------------------------"
-            $0 GET B FREQ
-            $0 GET B POWER
+            $0 -p $PORT GET B FREQ
+            $0 -p $PORT GET B POWER
             exit 0
             ;;
          A|B)
@@ -299,43 +302,43 @@ case "$P1" in
 				exit 0
 				;;
          PTTCTRL)
-            ANS="$(GetSet "BC")"
-            CTRL=${ANS%,*}           
-            PTT=${ANS#*,}
-            case "$PTT" in
-               0)
-                  echo "PTT is on Side A"
-                  ;;   
-               1)
-                  echo "PTT is on Side B"
-                  ;;   
-               *)
-                  echo "ERROR: Unable to determine PTT state $PTT"
-                  exit 1
-            esac
-            case "$CTRL" in
-               0)
-                  echo "CTRL is on Side A"
-                  exit 0
-                  ;;   
-               1)
-                  echo "CTRL is on Side B"
-                  exit 0
-                  ;;   
-               *)
-                  echo "ERROR: Unable to determine CTRL state $CTRL."
-                  exit 1
-            esac
+   			ANS="$(GetSet "BC")"
+   			CTRL=${ANS%,*}           
+   			PTT=${ANS#*,}
+   			case "$PTT" in
+      			0)
+         			echo "PTT is on Side A"
+         			;;   
+      			1)
+         			echo "PTT is on Side B"
+         			;;   
+      			*)
+         			echo "ERROR: Unable to determine PTT state $PTT"
+         			exit 1
+						;;
+   			esac
+   			case "$CTRL" in
+      			0)
+         			echo "CTRL is on Side A"
+         			;;   
+      			1)
+         			echo "CTRL is on Side B"
+         			;;   
+      			*)
+         			echo "ERROR: Unable to determine CTRL state $CTRL."
+         			exit 1
+						;;
+   			esac
             exit 0
             ;;
          PO*)
-            $0 GET A POWER
-            $0 GET B POWER
+            $0 -p $PORT GET A POWER
+            $0 -p $PORT GET B POWER
             exit 0
             ;;
          MO*)
-            $0 GET A MODE
-            $0 GET B MODE
+            $0 -p $PORT GET A MODE
+            $0 -p $PORT GET B MODE
             exit 0
             ;;
          MEM*)
@@ -361,8 +364,7 @@ case "$P1" in
 				exit 0
 				;;
          *)
-            Usage "Valid GET commands are A, B, PTTCTRL"
-            exit 1
+            Usage "Invalid GET command"
             ;;
       esac
       ;;
@@ -380,10 +382,10 @@ case "$P1" in
 						ANS="$(GetSet "MU $(SetMenu $ANS 38 1)")"
 						;;
 					*)
-      				Usage "Valid options are 1200 and 9600"
+      				Usage "Valid speed options are 1200 and 9600"
 			   		;;	
 				esac
-				$0 GET SPEED
+				$0 -p $PORT GET SPEED
 				exit 0
 				;;
 			APO) # Auto power off
@@ -408,10 +410,10 @@ case "$P1" in
 						ANS="$(GetSet "MU $(SetMenu $ANS 36 5)")"
 						;;
 					*)
-      				Usage "Valid options are off, 30, 60, 90, 120, 180"
+      				Usage "Valid APO options are off, 30, 60, 90, 120, 180"
 			   		;;	
 				esac
-				$0 GET APO
+				$0 -p $PORT GET APO
 				exit 0
 				;;
 			SQC) # SQC source
@@ -436,10 +438,10 @@ case "$P1" in
 						ANS="$(GetSet "MU $(SetMenu $ANS 39 5)")"
 						;;
 					*)
-      				Usage "Valid options are off, busy, sql, tx, busytx, sqltx"
+      				Usage "Valid SQC options are off, busy, sql, tx, busytx, sqltx"
 			   		;;	
 				esac
-				$0 GET SQC
+				$0 -p $PORT GET SQC
 				exit 0
 				;;
 			TIME*) # TX Timeout
@@ -455,15 +457,14 @@ case "$P1" in
 						ANS="$(GetSet "MU $(SetMenu $ANS 15 2)")"
 						;;
 					*)
-      				Usage "Valid options are 3, 5, 10"
+      				Usage "Valid timeout options are 3, 5, 10"
 			   		;;	
 				esac
-				$0 GET TIMEOUT
+				$0 -p $PORT GET TIMEOUT
 				exit 0
 				;;
          *)
-            Usage "Valid SET commands are A and B"
-            exit 1
+            Usage "Invalid SET command"
             ;;
       esac
       ;;
@@ -474,11 +475,10 @@ case "$P1" in
       ;;
    HELP)
       Usage
-      exit 0
       ;;
    *)
       Usage "Valid commands are GET, SET and HELP" 
-      exit 1
+		;;
 esac
 
 declare -a MODE1
@@ -507,10 +507,9 @@ case "$P3" in
             then
                ANS="$(GetSet "VM ${SIDE[$P2]},0")" # Set side to VFO before setting frequency
                ANS="$(GetSet "FO ${SIDE[$P2]},$(printf "%010d" $((10#$FR))),0,0,0,0,0,0,00,00,000,00000000,0")"
-               $0 get $P2 FREQ
+               $0 -p $PORT GET $P2 FREQ
             else
                Usage "Frequency must be between $(PrintMHz ${MINFREQ[$P2]}) and $(PrintMHz ${MAXFREQ[$P2]})"
-               exit 1  
             fi
             ;; 
       esac # $P1
@@ -544,11 +543,10 @@ case "$P3" in
                   ;;
                *)
                   Usage "Valid modes are VFO, MEMORY, CALL, and WX"
-                  exit 1
                   ;;
             esac 
             ANS="$(GetSet "VM ${SIDE[$P2]},$M")"
-            $0 GET $P2 MODE
+            $0 -p $PORT GET $P2 MODE
             ;; 
       esac # $P1
       ;;
@@ -566,11 +564,11 @@ case "$P3" in
             case "$P4" in
                H|M|L)
                   ANS="$(GetSet "PC ${SIDE[$P2]},${POWER[$P4]}")"
-                  $0 get $P2 POWER
+                  $0 -p $PORT GET $P2 POWER
                   ;; 
                *)
                   Usage "Valid power settings are H, M, and L"
-                  exit 1
+						;;
             esac
             ;;
       esac
@@ -595,7 +593,7 @@ case "$P3" in
       ;;
    PTTCTRL) # PTT/CTRL
       ANS="$(GetSet "BC ${SIDE[$P2]},${SIDE[$P2]}")" 
-      $0 GET PTTCTRL
+      $0 -p $PORT GET PTTCTRL
       ;;
    PTT) # PTT
       ANS="$(GetSet "BC")"
@@ -604,10 +602,10 @@ case "$P3" in
       if [[ "$P2" == "A" ]]
       then
          ANS="$(GetSet "BC $CTRL,0")" 
-         $0 GET PTTCTRL
+         $0 -p $PORT GET PTTCTRL
       else
          ANS="$(GetSet "BC $CTRL,1")" 
-         $0 GET PTTCTRL
+         $0 -p $PORT GET PTTCTRL
       fi      
       ;;
    CTRL) # CTRL
@@ -617,10 +615,10 @@ case "$P3" in
       if [[ "$P2" == "A" ]]
       then
          ANS="$(GetSet "BC 0,$PTT")" 
-         $0 GET PTTCTRL
+         $0 -p $PORT GET PTTCTRL
       else
          ANS="$(GetSet "BC 1,$PTT")" 
-         $0 GET PTTCTRL
+         $0 -p $PORT GET PTTCTRL
       fi      
       ;;
 	DA*) # External Data Side
@@ -631,7 +629,7 @@ case "$P3" in
 		else
 			ANS="$(GetSet "MU $(SetMenu $ANS 37 1)")"
 		fi
-		$0 GET DATA
+		$0 -p $PORT GET DATA
 		;;
    MEM*)
       if ((P4>=0 && P4<=999))
@@ -651,12 +649,9 @@ case "$P3" in
          fi
       else
          Usage "Memory location must be between 0 and 999"
-         exit 1
       fi
       ;;
    *)
       Usage "Valid options are FREQUENCY, POWER, PTT, CTRL and COMMAND" 
-      exit 1
+		;;
 esac
- 
-

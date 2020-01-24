@@ -3,7 +3,7 @@
 # Script to control Kenwood TM-V71A and TM-D710G radios via CAT commands.
 # Author: Steve Magnuson, AG7GN
 
-VERSION=4.7.5
+VERSION=4.7.6
 DEV=234
 SPEED=57600
 DIR="/dev/serial/by-id"
@@ -106,10 +106,21 @@ P4="${ARGS[3]^^}"
 
 [[ $P1 == "HELP" ]] && Usage
 
-# If '-p PORT' is supplied, ignore PORTSTRING.
+MATCHES=$(ls -l $DIR 2>/dev/null | egrep -i "$PORTSTRING" | wc -l)
+case $MATCHES in
+	0)
+		Usage "No cables found in $DIR with names that contain $PORTSTRING"
+		;;
+	1) # One match found.  Continue.
+		;;
+	*)
+		Usage "More than one cable in $DIR matches $PORTSTRING.  You must specify the cable to use with the '-p' or '-s' options."
+		;;
+esac
+
 if [[ $PORT == "" ]]
 then # User did not supply serial port.  Search for it using $PORTSTRING
-	PORT="$(ls -l $DIR 2>/dev/null | egrep -i "$PORTSTRING")"
+	PORT="$(ls $DIR 2>/dev/null | egrep -i "$PORTSTRING")"
 	PORT="$(echo "$PORT" | cut -d '>' -f2 | tr -d ' ./')"
 	[[ $PORT == "" ]] && Usage "Unable to find serial port connection to radio using search string '$PORTSTRING'"
 	PORT="/dev/${PORT}"

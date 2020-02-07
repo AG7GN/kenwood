@@ -1,162 +1,170 @@
 #!/bin/bash
+#================================================================
+# HEADER
+#================================================================
+#% SYNOPSIS
+#+   ${SCRIPT_NAME} [-hv] [-s[string]] [-p[port]] COMMAND
+#%
+#% DESCRIPTION
+#%   CAT control script for Kenwood TM-D710G/TM-V71A.
+#%   Set radio's PC port speed to ${SPEED} or change SPEED variable in this script to
+#%   match radio's setting.
+#%
+#% OPTIONS
+#%    -s [string], --string=[string]
+#%                                String to string to grep for in /dev/serial/by-id 
+#%                                to determine the serial port used to connect to your 
+#%                                radio.  Default string: ${DEFAULT_PORTSTRING}
+#%                                
+#%    -p [port], --port=[port]    Serial port connection to radio (ex. /dev/ttyUSB0).
+#%                                If both -p and -s are supplied, -p will be used.
+#% 
+#%    -h, --help                  Print this help
+#%    -v, --version               Print script information
+#%
+#% COMMANDS
+#%  ${SCRIPT_NAME} [OPTIONS] get apo      Prints Auto Power Off setting
+#%  ${SCRIPT_NAME} [OPTIONS] get data     Prints the side configured for external data
+#%  ${SCRIPT_NAME} [OPTIONS] get info     Prints some radio settings
+#%  ${SCRIPT_NAME} [OPTIONS] get memory <channel>    
+#%                                Prints memory channel configuration
+#%  ${SCRIPT_NAME} [OPTIONS] get menu     Prints raw menu contents output 
+#%                                (diagnostic command)
+#%  ${SCRIPT_NAME} [OPTIONS] get mode     Prints mode (modulation) settings
+#%  ${SCRIPT_NAME} [OPTIONS] get power    Prints power settings
+#%  ${SCRIPT_NAME} [OPTIONS] get pttctrl  Prints PTT and CTRL settings
+#%  ${SCRIPT_NAME} [OPTIONS] get speed    Prints external data speed (1200|9600)
+#%  ${SCRIPT_NAME} [OPTIONS] get sqc      Prints SQC source
+#%  ${SCRIPT_NAME} [OPTIONS] get a|b squelch
+#%                                Prints squelch settings for side A or B
+#%  ${SCRIPT_NAME} [OPTIONS] get timeout  Prints TX timeout setting
+#%  ${SCRIPT_NAME} [OPTIONS] set apo off|30|60|90|120|180     
+#%                                Sets Automatic Power Off (minutes)
+#%  ${SCRIPT_NAME} [OPTIONS] set a|b ctrl 
+#%                                Sets CTRL to side A or B
+#%  ${SCRIPT_NAME} [OPTIONS] set a|b data 
+#%                                Sets external data to side A or B
+#%  ${SCRIPT_NAME} [OPTIONS] set a|b freq <MHz>
+#%                                Sets side A or B to VFO and sets frequency to <MHz>
+#%  ${SCRIPT_NAME} [OPTIONS] set a|b memory <memory>
+#%                                Sets side A or B to memory mode and assigns
+#%                                <memory> location to it
+#%  ${SCRIPT_NAME} [OPTIONS] set a|b mode vfo|memory|call|wx
+#%                                Sets side A or B mode
+#%  ${SCRIPT_NAME} [OPTIONS] set a|b power l|m|h     
+#%                                Sets side A or B to Low, Medium or High power
+#%  ${SCRIPT_NAME} [OPTIONS] set a|b ptt             
+#%                                Sets PTT to side A or B
+#%  ${SCRIPT_NAME} [OPTIONS] set a|b pttctrl
+#%                                Sets PTT and CTRL to side A or B
+#%  ${SCRIPT_NAME} [OPTIONS] set speed 1200|9600     
+#%                                Sets external data speed to 1200 or 9600
+#%  ${SCRIPT_NAME} [OPTIONS] set a|b squelch <0-31>  
+#%                                Sets squelch level for side A or B
+#%  ${SCRIPT_NAME} [OPTIONS] set timeout 3|5|10      
+#%                                Sets transmit timeout (minutes)
+#%  ${SCRIPT_NAME} [OPTIONS] help         Prints this help screen
+#%
+#%
+#% EXAMPLES
+#%    
+#%  Locate serial port file name containing ${DEFAULT_PORTSTRING} (default search string),
+#%  then set APO to 30 minutes:
+#%
+#%     ${SCRIPT_NAME} set apo 30
+#%
+#%  Override the default search string ${DEFAULT_PORTSTRING} to locate serial port
+#%  connected to radio, then get radio information:
+#%
+#%     ${SCRIPT_NAME} -s Prolific_Technology get info
+#%
+#%  Specify the serial port used to connect to your radio then set radio TX timeout 
+#%  to 3 minutes:
+#%
+#%     ${SCRIPT_NAME} -p /dev/ttyUSB0 set timeout 3
+#%
+#================================================================
+#- IMPLEMENTATION
+#-    version         ${SCRIPT_NAME} 5.0.4
+#-    author          Steve Magnuson, AG7GN
+#-    license         CC-BY-SA Creative Commons License
+#-    script_id       0
+#-
+#================================================================
+#  HISTORY
+#     20180125 : Steve Magnuson : Script creation
+#     20200203 : Steve Magnuson : New script template
+# 
+#================================================================
+#  DEBUG OPTION
+#    set -n  # Uncomment to check your syntax, without execution.
+#    set -x  # Uncomment to debug this shell script
+#
+#================================================================
+# END_OF_HEADER
+#================================================================
 
-# Script to control Kenwood TM-V71A and TM-D710G radios via CAT commands.
-# Author: Steve Magnuson, AG7GN
+SYNTAX=false
+DEBUG=false
 
-VERSION=4.7.7
-DEV=234
-SPEED=57600
-DIR="/dev/serial/by-id"
-# The following PORTSTRING will be used if the '-s PORTSTRING' argument is not supplied
-DEFAULT_PORTSTRING="USB-Serial|RT_Systems|usb-FTDI"
-PORTSTRING="$DEFAULT_PORTSTRING"
+#============================
+#  FUNCTIONS
+#============================
 
-Usage () {
-	echo
-   [[ "$1" == "" ]] || echo "ERROR: $1"
-   echo
-	echo "Version $VERSION"
-	echo
-   echo "CAT control script for Kenwood TM-D710G/TM-V71A."
-	echo "Set radio's PC port speed to $SPEED or change SPEED setting in"
-	echo "this script to match radio's setting."
-   echo
-   echo "Usage:"
-   echo
-   echo "${0##*/} get apo						Prints Auto Power Off setting"
-   echo "${0##*/} get data                Prints the side configured for external data"
-   echo "${0##*/} get info                Prints some radio settings"
-   echo "${0##*/} get memory <channel>    Prints memory channel configuration"
-	echo "${0##*/} get menu                Prints raw menu contents output (diagnostic command)"
-   echo "${0##*/} get mode                Prints mode (modulation) settings"
-   echo "${0##*/} get power               Prints power settings"
-   echo "${0##*/} get pttctrl             Prints PTT and CTRL settings"
-	echo "${0##*/} get speed               Prints external data speed (1200|9600)"
-	echo "${0##*/} get sqc                 Prints SQC source"
-   echo "${0##*/} get a|b squelch         Prints squelch settings for side A or B"
-   echo "${0##*/} get timeout             Prints TX timeout setting"
-	echo
-	echo "${0##*/} set apo off|30|60|90|120|180     Sets Automatic Power Off (minutes)"
-   echo "${0##*/} set a|b ctrl            Sets CTRL to side A or B"
-   echo "${0##*/} set a|b data            Sets external data to side A or B"
-   echo "${0##*/} set a|b freq <MHz>      Sets side A or B to VFO and sets frequency to <MHz>"
-   echo "${0##*/} set a|b memory <memory>"
-   echo "                               Sets side A or B to memory mode and assigns"
-   echo "                               <memory> location to it"
-   echo "${0##*/} set a|b mode vfo|memory|call|wx"
-   echo "                               Sets side A or B mode"
-   echo "${0##*/} set a|b power l|m|h     Sets side A or B to Low, Medium or High power"
-   echo "${0##*/} set a|b ptt             Sets PTT to side A or B"
-   echo "${0##*/} set a|b pttctrl         Sets PTT and CTRL to side A or B"
-   echo "${0##*/} set speed 1200|9600     Sets external data speed to 1200 or 9600"
-   echo "${0##*/} set a|b squelch <0-31>  Sets squelch level for side A or B"
-	echo "${0##*/} set timeout 3|5|10      Sets transmit timeout (minutes)"
-   echo
-	echo "${0##*/} help                    Prints this help screen"
-	echo
-	echo "You can optionally supply the serial port used to connect to your radio.  For example:"
-	echo
-	echo "${0##*/} -p /dev/ttyUSB0 set timeout 3"
-	echo
-	echo "Alternatively, you can optionally supply a string to grep for in $DIR to determine the"
-	echo "serial port used to connect to your radio.  For example:"
-	echo
-	echo "${0##*/} -s RT_Systems get info"
-	echo
-	echo "If you do not supply a serial port with the -p option, or specify a string via '-s PORTSTRING'"
-	echo "to search for in order to determine the port, the script will search for a serial port in $DIR"
-	echo "using this grep string: $DEFAULT_PORTSTRING."
-	echo
-	echo "If a port is supplied using '-p PORT', it will take precedence over the search string."
-	echo
-   [[ "$1" == "" ]] && exit 0 || exit 1
+function TrapCleanup() {
+  [[ -d "${TMPDIR}" ]] && rm -r "${TMPDIR}"
+  exit 0
 }
 
-command -v bc >/dev/null || Usage "Cannot find bc application.  To install it, run: sudo apt update && sudo apt install -y bc"
-command -v rigctl >/dev/null || Usage "Cannot find rigctl application.  Install hamlib."
+function SafeExit() {
+  # Delete temp files, if any
+  [[ -d "${TMPDIR}" ]] && rm -r "${TMPDIR}"
+  trap - INT TERM EXIT
+  exit
+}
 
-# Check if user supplied serial port
-declare -a ARGS
-PORT=""
-while [ $# -gt 0 ]
-do
-   unset OPTIND
-   unset OPTARG
-   #while getopts as:c:  OPTIONS
-   while getopts p:s:  OPTIONS
-   do
-      case $OPTIONS in
-         p)
-            PORT="$OPTARG"
-         	;;
-         s)
-         	PORTSTRING="$OPTARG"
-         	;;
-      esac
-   done
-   shift $((OPTIND-1))
-   ARGS+=($1)
-   shift
-done
+function ScriptInfo() { 
+	HEAD_FILTER="^#-"
+	[[ "$1" = "usage" ]] && HEAD_FILTER="^#+"
+	[[ "$1" = "full" ]] && HEAD_FILTER="^#[%+]"
+	[[ "$1" = "version" ]] && HEAD_FILTER="^#-"
+	head -${SCRIPT_HEADSIZE:-99} ${0} | grep -e "${HEAD_FILTER}" | \
+	sed -e "s/${HEAD_FILTER}//g" \
+	    -e "s/\${SCRIPT_NAME}/${SCRIPT_NAME}/g" \
+	    -e "s/\${SPEED}/${SPEED}/g" \
+	    -e "s/\${DEFAULT_PORTSTRING}/${DEFAULT_PORTSTRING}/g"
+}
 
-P1="${ARGS[0]^^}"
-P2="${ARGS[1]^^}"
-P3="${ARGS[2]^^}"
-P4="${ARGS[3]^^}"
+function Usage() { 
+	printf "Usage: "
+	ScriptInfo usage
+	exit
+}
 
-[[ $P1 == "HELP" ]] && Usage
+function Die () {
+	echo "${*}"
+	SafeExit
+}
 
+#----------------------------
 
-if [[ $PORT == "" ]]
-then # User did not supply serial port.  Search for it using $PORTSTRING
-	MATCHES=$(ls $DIR 2>/dev/null | egrep -i "$PORTSTRING" | wc -l)
-	case $MATCHES in
-		0)
-			Usage "No cables found in $DIR with names that contain $PORTSTRING"
-			;;
-		1) 
-			PORT="$(ls -l $DIR 2>/dev/null | egrep -i "$PORTSTRING")"
-			PORT="$(echo "$PORT" | cut -d '>' -f2 | tr -d ' ./')"
-			[[ "$PORT" == "" ]] && Usage "Unable to find serial port connection to radio using search string '$PORTSTRING'"
-			PORT="/dev/${PORT}"
-			;;
-		*)
-			Usage "More than one cable in $DIR matches $PORTSTRING.  You must specify the cable to use with the '-p' or '-s' options."
-			;;
-	esac
-fi
-
-RIGCTL="$(command -v rigctl) -m $DEV -r $PORT -s $SPEED"
-$RIGCTL get_info >/dev/null || { echo "Unable to communicate with radio via $PORT @ $SPEED bps.  Check serial port and speed."; exit 1; }
-
-declare -A MINFREQ
-declare -A MAXFREQ
-MINFREQ[A]="118000000"
-MINFREQ[B]="136000000"
-MAXFREQ[A]="524000000"
-MAXFREQ[B]="1300000000"
-
-declare -A SIDE
-SIDE[A]=0
-SIDE[B]=1
-
-GetSet () {
+function GetSet () {
    RESULT="$($RIGCTL w "$1")"
-   [ $? -eq 0 ] || { echo "ERROR: $RESULT  Is the radio's PC port set to $SPEED?"; exit 1; }
+   [ $? -eq 0 ] || Die "rigctl ERROR: $RESULT  Is the radio's PC port set to $SPEED?"
    RESULT="$(echo $RESULT | cut -d' ' -f2- | tr -cd '\40-\176')"
    echo "$RESULT"
 }
 
-PrintMHz () {
+function PrintMHz () {
    echo "$(printf "%0.4f" $(bc -l <<< "$1/1000000")) MHz"
 }
 
-PrintMenu () {
+function PrintMenu () {
 	MU=($(echo $1 | tr -s ',' ' '))
 	echo $MU
 }
 
-SetMenu () {
+function SetMenu () {
 	# $1 is the menu input, comma separated
 	# $2 is the parameter to change (1-42)
 	# $3 is the value to set that parameter to
@@ -168,37 +176,37 @@ SetMenu () {
 	echo ${UM// /,}
 }
 
-PrintDataSide () {
+function PrintDataSide () {
    local S=( "A" "B" "TX A, RX B" "TX B, RX A" )
    local MU=($(echo $1 | tr -s ',' ' '))
    echo ${S[${MU[37]}]} 
 }
 
-PrintTimeout () {
+function PrintTimeout () {
 	local T=( "3" "5" "10" )
    local MU=($(echo $1 | tr -s ',' ' '))
 	echo ${T[${MU[15]}]}
 }
 
-PrintAPO () {
+function PrintAPO () {
 	local T=( "off" "30 minutes" "60 minutes" "90 minutes" "120 minutes" "180 minutes" )
    local MU=($(echo $1 | tr -s ',' ' '))
 	echo ${T[${MU[36]}]}
 }
 
-PrintSQCsource () {
+function PrintSQCsource () {
 	local T=( "off" "busy" "SQL" "TX" "BUSY or TX" "SQL or TX" )
    local MU=($(echo $1 | tr -s ',' ' '))
 	echo ${T[${MU[39]}]}
 }
 
-PrintSpeed () {
+function PrintSpeed () {
 	local T=( "1200" "9600" )
    local MU=($(echo $1 | tr -s ',' ' '))
 	echo ${T[${MU[38]}]}
 }
 
-PrintFreq () {
+function PrintFreq () {
    F=($(echo $1 | tr -s ',' ' '))
    declare -a FF
    if [[ "$2" == "ME" ]]
@@ -271,6 +279,172 @@ PrintFreq () {
    fi
 }
 
+#============================
+#  FILES AND VARIABLES
+#============================
+
+  #== general variables ==#
+SCRIPT_NAME="$(basename ${0})" # scriptname without path
+SCRIPT_DIR="$( cd $(dirname "$0") && pwd )" # script directory
+SCRIPT_FULLPATH="${SCRIPT_DIR}/${SCRIPT_NAME}"
+SCRIPT_ID="$(ScriptInfo | grep script_id | tr -s ' ' | cut -d' ' -f3)"
+SCRIPT_HEADSIZE=$(grep -sn "^# END_OF_HEADER" ${0} | head -1 | cut -f1 -d:)
+
+# Set Temp Directory
+# -----------------------------------
+# Create temp directory with three random numbers and the process ID
+# in the name.  This directory is removed automatically at exit.
+# -----------------------------------
+#TMPDIR="/tmp/${SCRIPT_NAME}.$RANDOM.$RANDOM.$RANDOM.$$"
+#(umask 077 && mkdir "${TMPDIR}") || {
+#  Die "Could not create temporary directory! Exiting."
+#}
+VERSION="$(ScriptInfo version | grep version | tr -s ' ' | cut -d' ' -f 4)" 
+
+DEV=234
+SPEED=57600
+DIR="/dev/serial/by-id"
+# The following PORTSTRING will be used if the '-s PORTSTRING' argument is not supplied
+DEFAULT_PORTSTRING="USB-Serial|RT_Systems|usb-FTDI"
+PORTSTRING="$DEFAULT_PORTSTRING"
+
+declare -A MINFREQ
+MINFREQ[A]="118000000"
+MINFREQ[B]="136000000"
+
+declare -A MAXFREQ
+MAXFREQ[A]="524000000"
+MAXFREQ[B]="1300000000"
+
+declare -A SIDE
+SIDE[A]=0
+SIDE[B]=1
+
+
+#============================
+#  PARSE OPTIONS WITH GETOPTS
+#============================
+  
+#== set short options ==#
+SCRIPT_OPTS=':hp:s:v-:'
+
+#== set long options associated with short one ==#
+typeset -A ARRAY_OPTS
+ARRAY_OPTS=(
+	[help]=h
+	[version]=v
+	[man]=h
+	[string]=s
+	[port]=p
+)
+
+# Parse options
+while getopts ${SCRIPT_OPTS} OPTION ; do
+	# Translate long options to short
+	if [[ "x$OPTION" == "x-" ]]; then
+		LONG_OPTION=$OPTARG
+		LONG_OPTARG=$(echo $LONG_OPTION | grep "=" | cut -d'=' -f2)
+		LONG_OPTIND=-1
+		[[ "x$LONG_OPTARG" = "x" ]] && LONG_OPTIND=$OPTIND || LONG_OPTION=$(echo $OPTARG | cut -d'=' -f1)
+		[[ $LONG_OPTIND -ne -1 ]] && eval LONG_OPTARG="\$$LONG_OPTIND"
+		OPTION=${ARRAY_OPTS[$LONG_OPTION]}
+		[[ "x$OPTION" = "x" ]] &&  OPTION="?" OPTARG="-$LONG_OPTION"
+		
+		if [[ $( echo "${SCRIPT_OPTS}" | grep -c "${OPTION}:" ) -eq 1 ]]; then
+			if [[ "x${LONG_OPTARG}" = "x" ]] || [[ "${LONG_OPTARG}" = -* ]]; then 
+				OPTION=":" OPTARG="-$LONG_OPTION"
+			else
+				OPTARG="$LONG_OPTARG";
+				if [[ $LONG_OPTIND -ne -1 ]]; then
+					[[ $OPTIND -le $Optnum ]] && OPTIND=$(( $OPTIND+1 ))
+					shift $OPTIND
+					OPTIND=1
+				fi
+			fi
+		fi
+	fi
+
+	# Options followed by another option instead of argument
+	if [[ "x${OPTION}" != "x:" ]] && [[ "x${OPTION}" != "x?" ]] && [[ "${OPTARG}" = -* ]]; then 
+		OPTARG="$OPTION" OPTION=":"
+	fi
+
+	# Finally, manage options
+	case "$OPTION" in
+		h) 
+			ScriptInfo full
+			exit 0
+			;;
+		p) 
+			PORT="$OPTARG"
+			;;
+		s) 
+			PORTSTRING="$OPTARG" 
+			;;
+		v) 
+			ScriptInfo version
+			exit 0
+			;;
+		:) 
+			Die "${SCRIPT_NAME}: -$OPTARG: option requires an argument"
+			;;
+		?) 
+			Die "${SCRIPT_NAME}: -$OPTARG: unknown option"
+			;;
+	esac
+done
+shift $((${OPTIND} - 1)) ## shift options
+
+
+#============================
+#  MAIN SCRIPT
+#============================
+
+# Trap bad exits with cleanup function
+trap TrapCleanup EXIT INT TERM
+
+# Exit on error. Append '||true' when you run the script if you expect an error.
+set -o errexit
+
+# Check Syntax if set
+$SYNTAX && set -n
+# Run in debug mode, if set
+$DEBUG && set -x 
+
+(( $# == 0 )) && Usage
+
+command -v bc >/dev/null || Die "Cannot find bc application.  To install it, run: sudo apt update && sudo apt install -y bc"
+command -v rigctl >/dev/null || Die "Cannot find rigctl application.  Install hamlib."
+
+P1="${1^^}"
+P2="${2^^}"
+P3="${3^^}"
+P4="${4^^}"
+
+[[ $P1 == "HELP" ]] && ScriptInfo full
+
+if [[ $PORT == "" ]]
+then # User did not supply serial port.  Search for it using $PORTSTRING
+	MATCHES=$(ls $DIR 2>/dev/null | egrep -i "$PORTSTRING" | wc -l)
+	case $MATCHES in
+		0)
+			Die "No devices found in $DIR with file names that contain string \"$PORTSTRING\""
+			;;
+		1) 
+			PORT="$(ls -l $DIR 2>/dev/null | egrep -i "$PORTSTRING")"
+			PORT="$(echo "$PORT" | cut -d '>' -f2 | tr -d ' ./')"
+			[[ "$PORT" == "" ]] && Die "Unable to find serial port connection to radio using search string '$PORTSTRING'"
+			PORT="/dev/${PORT}"
+			;;
+		*)
+			Die "More than one cable in $DIR matches $PORTSTRING.  You must specify the cable to use with the '-p' or '-s' options."
+			;;
+	esac
+fi
+
+RIGCTL="$(command -v rigctl) -m $DEV -r $PORT -s $SPEED"
+$RIGCTL get_info >/dev/null || Die "Unable to communicate with radio via $PORT @ $SPEED bps.  Check serial port and speed."
+
 case "$P1" in
    GET)
       case "$P2" in
@@ -324,8 +498,7 @@ case "$P1" in
          			echo "PTT is on Side B"
          			;;   
       			*)
-         			echo "ERROR: Unable to determine PTT state $PTT"
-         			exit 1
+         			Die "ERROR: Unable to determine PTT state $PTT"
 						;;
    			esac
    			case "$CTRL" in
@@ -336,8 +509,7 @@ case "$P1" in
          			echo "CTRL is on Side B"
          			;;   
       			*)
-         			echo "ERROR: Unable to determine CTRL state $CTRL."
-         			exit 1
+         			Die "ERROR: Unable to determine CTRL state $CTRL."
 						;;
    			esac
             exit 0
@@ -366,7 +538,7 @@ case "$P1" in
                fi
                exit 0
             else
-               Usage "Memory location must be between 0 and 999"
+               Die "Memory location must be between 0 and 999"
                exit 1
             fi
             ;;
@@ -375,7 +547,7 @@ case "$P1" in
 				exit 0
 				;;
          *)
-            Usage "Invalid GET command"
+            Die "Invalid GET command"
             ;;
       esac
       ;;
@@ -393,7 +565,7 @@ case "$P1" in
 						ANS="$(GetSet "MU $(SetMenu $ANS 38 1)")"
 						;;
 					*)
-      				Usage "Valid speed options are 1200 and 9600"
+      				Die "Valid speed options are 1200 and 9600"
 			   		;;	
 				esac
 				$0 -p $PORT GET SPEED
@@ -421,7 +593,7 @@ case "$P1" in
 						ANS="$(GetSet "MU $(SetMenu $ANS 36 5)")"
 						;;
 					*)
-      				Usage "Valid APO options are off, 30, 60, 90, 120, 180"
+      				Die "Valid APO options are off, 30, 60, 90, 120, 180"
 			   		;;	
 				esac
 				$0 -p $PORT GET APO
@@ -449,7 +621,7 @@ case "$P1" in
 						ANS="$(GetSet "MU $(SetMenu $ANS 39 5)")"
 						;;
 					*)
-      				Usage "Valid SQC options are off, busy, sql, tx, busytx, sqltx"
+      				Die "Valid SQC options are off, busy, sql, tx, busytx, sqltx"
 			   		;;	
 				esac
 				$0 -p $PORT GET SQC
@@ -468,14 +640,14 @@ case "$P1" in
 						ANS="$(GetSet "MU $(SetMenu $ANS 15 2)")"
 						;;
 					*)
-      				Usage "Valid timeout options are 3, 5, 10"
+      				Die "Valid timeout options are 3, 5, 10"
 			   		;;	
 				esac
 				$0 -p $PORT GET TIMEOUT
 				exit 0
 				;;
          *)
-            Usage "Invalid SET command"
+            Die "Invalid SET command"
             ;;
       esac
       ;;
@@ -488,7 +660,7 @@ case "$P1" in
       Usage
       ;;
    *)
-      Usage "Valid commands are GET, SET and HELP" 
+      Die "Valid commands are GET, SET and HELP" 
 		;;
 esac
 
@@ -520,7 +692,7 @@ case "$P3" in
                ANS="$(GetSet "FO ${SIDE[$P2]},$(printf "%010d" $((10#$FR))),0,0,0,0,0,0,00,00,000,00000000,0")"
                $0 -p $PORT GET $P2 FREQ
             else
-               Usage "Frequency must be between $(PrintMHz ${MINFREQ[$P2]}) and $(PrintMHz ${MAXFREQ[$P2]})"
+               Die "Frequency must be between $(PrintMHz ${MINFREQ[$P2]}) and $(PrintMHz ${MAXFREQ[$P2]})"
             fi
             ;; 
       esac # $P1
@@ -553,7 +725,7 @@ case "$P3" in
                   M=3
                   ;;
                *)
-                  Usage "Valid modes are VFO, MEMORY, CALL, and WX"
+                  Die "Valid modes are VFO, MEMORY, CALL, and WX"
                   ;;
             esac 
             ANS="$(GetSet "VM ${SIDE[$P2]},$M")"
@@ -578,7 +750,7 @@ case "$P3" in
                   $0 -p $PORT GET $P2 POWER
                   ;; 
                *)
-                  Usage "Valid power settings are H, M, and L"
+                  Die "Valid power settings are H, M, and L"
 						;;
             esac
             ;;
@@ -597,7 +769,7 @@ case "$P3" in
                ANS="$(GetSet "SQ ${SIDE[$P2]},$P4")" 
                echo "Side $P2 squelch is at $((16#${ANS#*,})) out of 31"
             else
-               Usage "Valid squelch settings are between 0 and 31 inclusive"
+               Die "Valid squelch settings are between 0 and 31 inclusive"
             fi
             ;;
       esac
@@ -659,10 +831,13 @@ case "$P3" in
             echo "Name: ${ANS#*,}"
          fi
       else
-         Usage "Memory location must be between 0 and 999"
+         Die "Memory location must be between 0 and 999"
       fi
       ;;
    *)
-      Usage "Valid options are FREQUENCY, POWER, PTT, CTRL and COMMAND" 
+      Die "Valid options are FREQUENCY, POWER, PTT, CTRL and COMMAND" 
 		;;
 esac
+
+SafeExit
+

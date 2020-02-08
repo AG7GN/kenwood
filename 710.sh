@@ -38,6 +38,8 @@
 #%  ${SCRIPT_NAME} [OPTIONS] get a|b squelch
 #%                                Prints squelch settings for side A or B
 #%  ${SCRIPT_NAME} [OPTIONS] get timeout  Prints TX timeout setting
+#%  ${SCRIPT_NAME} [OPTIONS] get vhf|uhf aip 
+#%                                Prints AIP setting for VHF or UHF
 #%  ${SCRIPT_NAME} [OPTIONS] set apo off|30|60|90|120|180     
 #%                                Sets Automatic Power Off (minutes)
 #%  ${SCRIPT_NAME} [OPTIONS] set a|b ctrl 
@@ -63,6 +65,8 @@
 #%                                Sets squelch level for side A or B
 #%  ${SCRIPT_NAME} [OPTIONS] set timeout 3|5|10      
 #%                                Sets transmit timeout (minutes)
+#%  ${SCRIPT_NAME} [OPTIONS] set vhf|uhf aip on|off  
+#%                                Sets squelch level for side A or B
 #%  ${SCRIPT_NAME} [OPTIONS] help         Prints this help screen
 #%
 #%
@@ -186,6 +190,18 @@ function PrintTimeout () {
 	local T=( "3" "5" "10" )
    local MU=($(echo $1 | tr -s ',' ' '))
 	echo ${T[${MU[15]}]}
+}
+
+function PrintVHFAIP () {
+   local STATE=( "Off" "On" )
+   local MU=($(echo $1 | tr -s ',' ' '))
+	echo ${STATE[${MU[11]}]}
+}
+
+function PrintUHFAIP () {
+   local STATE=( "Off" "On" )
+   local MU=($(echo $1 | tr -s ',' ' '))
+	echo ${STATE[${MU[12]}]}
 }
 
 function PrintAPO () {
@@ -456,6 +472,8 @@ case "$P1" in
             $0 -p $PORT GET PTTCTRL
             $0 -p $PORT GET DATA
             $0 -p $PORT GET SPEED
+            $0 -p $PORT GET VHF AIP
+            $0 -p $PORT GET UHF AIP
             echo "------------------------------------"
             $0 -p $PORT GET A FREQ
             $0 -p $PORT GET A POWER
@@ -464,7 +482,7 @@ case "$P1" in
             $0 -p $PORT GET B POWER
             exit 0
             ;;
-         A|B)
+         A|B|VHF|UHF)
             ;;
 			DATA)
 				echo "External Data is on Side $(PrintDataSide $(GetSet "MU"))"
@@ -553,7 +571,7 @@ case "$P1" in
       ;;
    SET)
       case $P2 in
-         A|B) # Handled in case $P3 section below 
+         A|B|VHF|UHF) # Handled in case $P3 section below 
 				;;
 			SP*) # External Data Speed
 				ANS="$(GetSet "MU")"
@@ -660,7 +678,7 @@ case "$P1" in
       Usage
       ;;
    *)
-      Die "Valid commands are GET, SET and HELP" 
+      Die "Valid commands are GET, SET, and HELP; also VHF and UHF for AIP." 
 		;;
 esac
 
@@ -668,6 +686,54 @@ declare -a MODE1
 MODE1[0]="VFO"; MODE1[1]="Memory"; MODE1[2]="Call"; MODE1[3]="WX";
 
 case "$P3" in
+	AIP) # Advanced Intercept Point
+		ANS="$(GetSet "MU")"
+		case "$P2" in
+			VHF)
+				case "$P1" in
+					GET)
+						echo "VHF Advanced Intercept Point (AIP) is $(PrintVHFAIP $(GetSet "MU"))"
+						;;
+					SET)
+		            case "$P4" in
+							OFF)
+								ANS="$(GetSet "MU $(SetMenu $ANS 11 0)")"
+								;;
+							ON)
+								ANS="$(GetSet "MU $(SetMenu $ANS 11 1)")"
+								;;
+							*) 
+								Die "AIP state must be OFF or ON"
+								;;
+						esac
+						echo "VHF Advanced Intercept Point (AIP) is $(PrintVHFAIP $(GetSet "MU"))"
+						;;
+				esac
+				;;
+			UHF)
+				case "$P1" in
+					GET)
+						echo "UHF Advanced Intercept Point (AIP) is $(PrintUHFAIP $(GetSet "MU"))"
+						;;
+					SET)
+		            case "$P4" in
+							OFF)
+								ANS="$(GetSet "MU $(SetMenu $ANS 12 0)")"
+								
+								;;
+							ON)
+								ANS="$(GetSet "MU $(SetMenu $ANS 12 1)")"
+								;;
+							*) 
+								Die "AIP state must be OFF or ON"
+								;;
+						esac
+						echo "UHF Advanced Intercept Point (AIP) is $(PrintUHFAIP $(GetSet "MU"))"
+						;;
+				esac
+				;;
+		esac
+		;;
    F*) # Frequency
       case "$P1" in
          GET)
@@ -835,7 +901,7 @@ case "$P3" in
       fi
       ;;
    *)
-      Die "Valid options are FREQUENCY, POWER, PTT, CTRL and COMMAND" 
+      Die "Valid options are AIP, FREQUENCY, POWER, PTT, CTRL and COMMAND" 
 		;;
 esac
 

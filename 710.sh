@@ -3,7 +3,7 @@
 # HEADER
 #================================================================
 #% SYNOPSIS
-#+   ${SCRIPT_NAME} [-hv] [-s[string]] [-p[port]] COMMAND
+#+   ${SCRIPT_NAME} [-hv] [-s STRING] [-p PORT] COMMAND
 #%
 #% DESCRIPTION
 #%   CAT control script for Kenwood TM-D710G/TM-V71A.
@@ -11,12 +11,12 @@
 #%   match radio's setting.
 #%
 #% OPTIONS
-#%    -s [string], --string=[string]
-#%                                String to string to grep for in /dev/serial/by-id 
+#%    -s STRING, --string=STRING
+#%                                String to grep for in /dev/serial/by-id 
 #%                                to determine the serial port used to connect to your 
 #%                                radio.  Default string: ${DEFAULT_PORTSTRING}
 #%                                
-#%    -p [port], --port=[port]    Serial port connection to radio (ex. /dev/ttyUSB0).
+#%    -p PORT, --port=PORT    Serial port connection to radio (ex. /dev/ttyUSB0).
 #%                                If both -p and -s are supplied, -p will be used.
 #% 
 #%    -h, --help                  Print this help
@@ -89,7 +89,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 5.0.5
+#-    version         ${SCRIPT_NAME} 5.0.6
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -340,6 +340,8 @@ SIDE[B]=1
 #============================
 #  PARSE OPTIONS WITH GETOPTS
 #============================
+
+Optnum=$#
   
 #== set short options ==#
 SCRIPT_OPTS=':hp:s:v-:'
@@ -349,17 +351,20 @@ typeset -A ARRAY_OPTS
 ARRAY_OPTS=(
 	[help]=h
 	[version]=v
-	[man]=h
 	[string]=s
 	[port]=p
 )
 
+LONG_OPTS="^($(echo "${!ARRAY_OPTS[@]}" | tr ' ' '|'))="
+
 # Parse options
-while getopts ${SCRIPT_OPTS} OPTION ; do
+while getopts ${SCRIPT_OPTS} OPTION
+do
 	# Translate long options to short
-	if [[ "x$OPTION" == "x-" ]]; then
+	if [[ "x$OPTION" == "x-" ]]
+	then
 		LONG_OPTION=$OPTARG
-		LONG_OPTARG=$(echo $LONG_OPTION | grep "=" | cut -d'=' -f2)
+		LONG_OPTARG=$(echo $LONG_OPTION | egrep "$LONG_OPTS" | cut -d'=' -f2-)
 		LONG_OPTIND=-1
 		[[ "x$LONG_OPTARG" = "x" ]] && LONG_OPTIND=$OPTIND || LONG_OPTION=$(echo $OPTARG | cut -d'=' -f1)
 		[[ $LONG_OPTIND -ne -1 ]] && eval LONG_OPTARG="\$$LONG_OPTIND"

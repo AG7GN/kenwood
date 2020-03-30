@@ -87,9 +87,20 @@
 #%
 #%     ${SCRIPT_NAME} -p /dev/ttyUSB0 set timeout 3
 #%
+#% NOTES
+#%
+#%  Kenwood makes no commands available to change frequencies from one frequency band to
+#%  another.  For example, if the current VFO is 145.020, you cannot change the frequency
+#%  using the script to 445.020.  The workaround is to program memories as needed with
+#%  frequencies in different frequency bands and then use the "set a|b memory <memory>"
+#%  command as described above.
+#%
+#%  This script uses the Kenwood rig control commands documented by LA3QMA at
+#%  https://github.com/LA3QMA/TM-V71_TM-D710-Kenwood
+#%  
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 5.0.6
+#-    version         ${SCRIPT_NAME} 5.0.7
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -98,6 +109,7 @@
 #  HISTORY
 #     20180125 : Steve Magnuson : Script creation
 #     20200203 : Steve Magnuson : New script template
+#     20200330 : Steve Magnuson : Improved debugging of serial port problems
 # 
 #================================================================
 #  DEBUG OPTION
@@ -146,7 +158,7 @@ function Usage() {
 }
 
 function Die () {
-	echo "${*}"
+	echo -e "${*}"
 	SafeExit
 }
 
@@ -464,7 +476,8 @@ then # User did not supply serial port.  Search for it using $PORTSTRING
 fi
 
 RIGCTL="$(command -v rigctl) -m $DEV -r $PORT -s $SPEED"
-$RIGCTL get_info >/dev/null || Die "Unable to communicate with radio via $PORT @ $SPEED bps.  Check serial port and speed."
+MODEL="$($RIGCTL w ID)"
+[[ $MODEL =~ ID ]] || Die "Unable to communicate with radio via $PORT @ $SPEED bps.\nCheck serial port connection to radio and make sure radio's \"PC PORT BAUDRATE\" is set to $SPEED.\nOn the TM-D710G, the serial cable must be plugged in to the TX/RX Unit, not the Operation panel."
 
 case "$P1" in
    GET)
@@ -472,11 +485,11 @@ case "$P1" in
          INFO)
             echo "Model: $(GetSet "ID")"
             echo "Serial: $(GetSet "AE")"
-            $0 -p $PORT GET APO
-            $0 -p $PORT GET TIMEOUT
+            echo "APO is $(PrintAPO $(GetSet "MU"))"
+            echo "TX Timeout is $(PrintTimeout $(GetSet "MU")) minutes"
             $0 -p $PORT GET PTTCTRL
-            $0 -p $PORT GET DATA
-            $0 -p $PORT GET SPEED
+            echo "External Data is on Side $(PrintDataSide $(GetSet "MU"))"
+            echo "External data speed is $(PrintSpeed $(GetSet "MU"))"
             $0 -p $PORT GET VHF AIP
             $0 -p $PORT GET UHF AIP
             echo "------------------------------------"

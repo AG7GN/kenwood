@@ -16,7 +16,7 @@
 #%                                to determine the serial port used to connect to your 
 #%                                radio.  Default string: ${DEFAULT_PORTSTRING}
 #%                                
-#%    -p PORT, --port=PORT    Serial port connection to radio (ex. /dev/ttyUSB0).
+#%    -p PORT, --port=PORT        Serial port connection to radio (ex. /dev/ttyUSB0).
 #%                                If both -p and -s are supplied, -p will be used.
 #% 
 #%    -h, --help                  Print this help
@@ -66,7 +66,7 @@
 #%  ${SCRIPT_NAME} [OPTIONS] set timeout 3|5|10      
 #%                                Sets transmit timeout (minutes)
 #%  ${SCRIPT_NAME} [OPTIONS] set vhf|uhf aip on|off  
-#%                                Sets squelch level for side A or B
+#%                                Sets Advanced Intercept Point for VHF or UHF
 #%  ${SCRIPT_NAME} [OPTIONS] help         Prints this help screen
 #%
 #%
@@ -100,7 +100,7 @@
 #%  
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 5.0.7
+#-    version         ${SCRIPT_NAME} 5.0.9
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -136,7 +136,7 @@ function SafeExit() {
   # Delete temp files, if any
   [[ -d "${TMPDIR}" ]] && rm -r "${TMPDIR}"
   trap - INT TERM EXIT
-  exit
+  exit $1
 }
 
 function ScriptInfo() { 
@@ -154,21 +154,25 @@ function ScriptInfo() {
 function Usage() { 
 	printf "Usage: "
 	ScriptInfo usage
-	exit
+	exit 0
 }
 
 function Die () {
 	echo -e "${*}"
-	SafeExit
+	SafeExit 1
 }
 
 #----------------------------
 
 function GetSet () {
    RESULT="$($RIGCTL w "$1")"
-   [ $? -eq 0 ] || Die "rigctl ERROR: $RESULT  Is the radio's PC port set to $SPEED?"
-   RESULT="$(echo $RESULT | cut -d' ' -f2- | tr -cd '\40-\176')"
-   echo "$RESULT"
+   if [[ $RESULT =~ $1 ]]
+   then
+   	RESULT="$(echo $RESULT | cut -d' ' -f2- | tr -cd '\40-\176')"
+   	echo "$RESULT"
+   else
+    	kill -SIGUSR1 $$
+   fi
 }
 
 function PrintMHz () {
@@ -348,7 +352,6 @@ declare -A SIDE
 SIDE[A]=0
 SIDE[B]=1
 
-
 #============================
 #  PARSE OPTIONS WITH GETOPTS
 #============================
@@ -435,6 +438,7 @@ shift $((${OPTIND} - 1)) ## shift options
 
 # Trap bad exits with cleanup function
 trap TrapCleanup EXIT INT TERM
+trap 'echo "Error communicating with radio!"; exit 1' SIGUSR1
 
 # Exit on error. Append '||true' when you run the script if you expect an error.
 set -o errexit
@@ -477,7 +481,7 @@ fi
 
 RIGCTL="$(command -v rigctl) -m $DEV -r $PORT -s $SPEED"
 MODEL="$($RIGCTL w ID)"
-[[ $MODEL =~ ID ]] || Die "Unable to communicate with radio via $PORT @ $SPEED bps.\nCheck serial port connection to radio and make sure radio's \"PC PORT BAUDRATE\" is set to $SPEED.\nOn the TM-D710G, the serial cable must be plugged in to the TX/RX Unit, not the Operation panel."
+[[ $MODEL =~ ID ]] || Die "Unable to communicate with radio via $PORT @ $SPEED bps.\nCheck serial port connection to radio and make sure radio's \"PC PORT BAUDRATE\" is set to $SPEED.\nOn the TM-D710G, the serial cable must be plugged in to the PC port on the TX/RX Unit,\nnot the COM port on the Operation panel."
 
 case "$P1" in
    GET)
@@ -487,17 +491,17 @@ case "$P1" in
             echo "Serial: $(GetSet "AE")"
             echo "APO is $(PrintAPO $(GetSet "MU"))"
             echo "TX Timeout is $(PrintTimeout $(GetSet "MU")) minutes"
-            $0 -p $PORT GET PTTCTRL
+            $0 -p $PORT GET PTTCTRL || Die 
             echo "External Data is on Side $(PrintDataSide $(GetSet "MU"))"
             echo "External data speed is $(PrintSpeed $(GetSet "MU"))"
-            $0 -p $PORT GET VHF AIP
-            $0 -p $PORT GET UHF AIP
+            $0 -p $PORT GET VHF AIP || Die
+            $0 -p $PORT GET UHF AIP || Die
             echo "------------------------------------"
-            $0 -p $PORT GET A FREQ
-            $0 -p $PORT GET A POWER
+            $0 -p $PORT GET A FREQ || Die
+            $0 -p $PORT GET A POWER || Die
             echo "------------------------------------"
-            $0 -p $PORT GET B FREQ
-            $0 -p $PORT GET B POWER
+            $0 -p $PORT GET B FREQ || Die
+            $0 -p $PORT GET B POWER || Die
             exit 0
             ;;
          A|B|VHF|UHF)
@@ -551,13 +555,13 @@ case "$P1" in
             exit 0
             ;;
          PO*)
-            $0 -p $PORT GET A POWER
-            $0 -p $PORT GET B POWER
+            $0 -p $PORT GET A POWER || Die
+            $0 -p $PORT GET B POWER || Die
             exit 0
             ;;
          MO*)
-            $0 -p $PORT GET A MODE
-            $0 -p $PORT GET B MODE
+            $0 -p $PORT GET A MODE || Die
+            $0 -p $PORT GET B MODE || Die
             exit 0
             ;;
          MEM*)
@@ -604,7 +608,7 @@ case "$P1" in
       				Die "Valid speed options are 1200 and 9600"
 			   		;;	
 				esac
-				$0 -p $PORT GET SPEED
+				$0 -p $PORT GET SPEED || Die
 				exit 0
 				;;
 			APO) # Auto power off
@@ -632,7 +636,7 @@ case "$P1" in
       				Die "Valid APO options are off, 30, 60, 90, 120, 180"
 			   		;;	
 				esac
-				$0 -p $PORT GET APO
+				$0 -p $PORT GET APO || Die
 				exit 0
 				;;
 			SQC) # SQC source
@@ -660,7 +664,7 @@ case "$P1" in
       				Die "Valid SQC options are off, busy, sql, tx, busytx, sqltx"
 			   		;;	
 				esac
-				$0 -p $PORT GET SQC
+				$0 -p $PORT GET SQC || Die
 				exit 0
 				;;
 			TIME*) # TX Timeout
@@ -679,7 +683,7 @@ case "$P1" in
       				Die "Valid timeout options are 3, 5, 10"
 			   		;;	
 				esac
-				$0 -p $PORT GET TIMEOUT
+				$0 -p $PORT GET TIMEOUT || Die
 				exit 0
 				;;
          *)
@@ -774,7 +778,7 @@ case "$P3" in
             then
                ANS="$(GetSet "VM ${SIDE[$P2]},0")" # Set side to VFO before setting frequency
                ANS="$(GetSet "FO ${SIDE[$P2]},$(printf "%010d" $((10#$FR))),0,0,0,0,0,0,00,00,000,00000000,0")"
-               $0 -p $PORT GET $P2 FREQ
+               $0 -p $PORT GET $P2 FREQ || Die
             else
                Die "Frequency must be between $(PrintMHz ${MINFREQ[$P2]}) and $(PrintMHz ${MAXFREQ[$P2]})"
             fi
@@ -813,7 +817,7 @@ case "$P3" in
                   ;;
             esac 
             ANS="$(GetSet "VM ${SIDE[$P2]},$M")"
-            $0 -p $PORT GET $P2 MODE
+            $0 -p $PORT GET $P2 MODE || Die
             ;; 
       esac # $P1
       ;;
@@ -831,7 +835,7 @@ case "$P3" in
             case "$P4" in
                H|M|L)
                   ANS="$(GetSet "PC ${SIDE[$P2]},${POWER[$P4]}")"
-                  $0 -p $PORT GET $P2 POWER
+                  $0 -p $PORT GET $P2 POWER || Die
                   ;; 
                *)
                   Die "Valid power settings are H, M, and L"
@@ -860,7 +864,7 @@ case "$P3" in
       ;;
    PTTCTRL) # PTT/CTRL
       ANS="$(GetSet "BC ${SIDE[$P2]},${SIDE[$P2]}")" 
-      $0 -p $PORT GET PTTCTRL
+      $0 -p $PORT GET PTTCTRL || Die
       ;;
    PTT) # PTT
       ANS="$(GetSet "BC")"
@@ -869,10 +873,10 @@ case "$P3" in
       if [[ "$P2" == "A" ]]
       then
          ANS="$(GetSet "BC $CTRL,0")" 
-         $0 -p $PORT GET PTTCTRL
+         $0 -p $PORT GET PTTCTRL || Die
       else
          ANS="$(GetSet "BC $CTRL,1")" 
-         $0 -p $PORT GET PTTCTRL
+         $0 -p $PORT GET PTTCTRL || Die
       fi      
       ;;
    CTRL) # CTRL
@@ -882,10 +886,10 @@ case "$P3" in
       if [[ "$P2" == "A" ]]
       then
          ANS="$(GetSet "BC 0,$PTT")" 
-         $0 -p $PORT GET PTTCTRL
+         $0 -p $PORT GET PTTCTRL || Die
       else
          ANS="$(GetSet "BC 1,$PTT")" 
-         $0 -p $PORT GET PTTCTRL
+         $0 -p $PORT GET PTTCTRL || Die
       fi      
       ;;
 	DA*) # External Data Side
@@ -896,7 +900,7 @@ case "$P3" in
 		else
 			ANS="$(GetSet "MU $(SetMenu $ANS 37 1)")"
 		fi
-		$0 -p $PORT GET DATA
+		$0 -p $PORT GET DATA || Die
 		;;
    MEM*)
       if ((P4>=0 && P4<=999))
@@ -923,5 +927,5 @@ case "$P3" in
 		;;
 esac
 
-SafeExit
+SafeExit 0
 

@@ -26,8 +26,12 @@
 #%  ${SCRIPT_NAME} [OPTIONS] get apo      Prints Auto Power Off setting
 #%  ${SCRIPT_NAME} [OPTIONS] get data     Prints the side configured for external data
 #%  ${SCRIPT_NAME} [OPTIONS] get info     Prints some radio settings
-#%  ${SCRIPT_NAME} [OPTIONS] get memory <channel>    
-#%                                Prints memory channel configuration
+#%  ${SCRIPT_NAME} [OPTIONS] get memory <channel>|<Ch1>-<Ch2>   
+#%                                Prints memory channel information for a specific
+#%                                channel or a range of channels between Ch1 and Ch2.
+#%                                Channel numbers must range between 0 and 999 and 
+#%                                Ch1 < Ch2. Printing all the channels, 0-999, will take
+#%                                a VERY long time!
 #%  ${SCRIPT_NAME} [OPTIONS] get menu     Prints raw menu contents output 
 #%                                (diagnostic command)
 #%  ${SCRIPT_NAME} [OPTIONS] get mode     Prints mode (modulation) settings
@@ -100,7 +104,7 @@
 #%  
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 5.0.9
+#-    version         ${SCRIPT_NAME} 5.1.2
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -109,7 +113,8 @@
 #  HISTORY
 #     20180125 : Steve Magnuson : Script creation
 #     20200203 : Steve Magnuson : New script template
-#     20200330 : Steve Magnuson : Improved debugging of serial port problems
+#     20200330 : Steve Magnuson : Improved debugging of serial port problems, added
+#                                 ability to print multiple memory locations.
 # 
 #================================================================
 #  DEBUG OPTION
@@ -166,7 +171,8 @@ function Die () {
 
 function GetSet () {
    RESULT="$($RIGCTL w "$1")"
-   if [[ $RESULT =~ $1 ]]
+   local CMD="$(echo $1 | cut -d' ' -f1)"
+   if [[ $RESULT =~ ^($CMD|N) ]]
    then
    	RESULT="$(echo $RESULT | cut -d' ' -f2- | tr -cd '\40-\176')"
    	echo "$RESULT"
@@ -176,7 +182,7 @@ function GetSet () {
 }
 
 function PrintMHz () {
-   echo "$(printf "%0.4f" $(bc -l <<< "$1/1000000")) MHz"
+   echo "$(printf "%0.4f" $(bc -l <<< "$1/1000000"))"
 }
 
 function PrintMenu () {
@@ -285,29 +291,34 @@ function PrintFreq () {
    M=( "FM" "AM" "NFM" )
    L=( "Off" "On" )
    S=( "A" "B" )
-   if [[ $2 == "ME" ]]
-   then
-      echo "Memory Channel: ${F[0]}" 
-   else
-      echo "Side: ${S[${F[0]}]}" 
-   fi
-   echo "Frequency: $(PrintMHz ${F[1]})"
-   echo "Step Size: ${SS[$((10#${F[2]}))]} KHz"
-   echo "Shift Direction: ${SD[$((10#${F[3]}))]}"
-   echo "Reverse: ${L[${F[4]}]}"
-   echo "Tone Status: ${L[${F[5]}]}"
-   echo "CTCSS Status: ${L[${F[6]}]}"
-   echo "DCS Status: ${L[${F[7]}]}"
-   echo "Tone Frequency: ${TF[$((10#${F[8]}))]} Hz"
-   echo "CTCSS Frequency: ${TF[$((10#${F[9]}))]} Hz"
-   echo "DCS Frequency: ${DCS[$((10#${F[10]}))]} Hz" 
-   echo "Offset Frequency: $(PrintMHz ${F[11]})"
-   echo "Modulation: ${M[${F[12]}]}" 
-   if [[ $2 == "ME" ]]
-   then
-      #echo "Frequency?: $(PrintMHz ${F[13]})"
-      #echo "Unknown Parameter: ${F[14]}"
-      echo "Lockout: ${L[${F[15]}]}"
+   if [[ $2 == "ME" && $3 == "LIST" ]]
+	then
+		echo -e "$(PrintMHz ${F[1]})\t${SS[$((10#${F[2]}))]}\t${SD[$((10#${F[3]}))]}\t${L[${F[4]}]}\t${L[${F[5]}]}\t${L[${F[6]}]}\t${L[${F[7]}]}\t${TF[$((10#${F[8]}))]}\t${TF[$((10#${F[9]}))]}\t${DCS[$((10#${F[10]}))]}\t$(PrintMHz ${F[11]})\t${M[${F[12]}]}\t${L[${F[15]}]}"
+	else
+   	if [[ $2 == "ME" ]]
+   	then
+      	echo "Memory Channel: ${F[0]}" 
+   	else
+      	echo "Side: ${S[${F[0]}]}" 
+   	fi
+   	echo "Frequency: $(PrintMHz ${F[1]}) MHz"
+   	echo "Step Size: ${SS[$((10#${F[2]}))]} KHz"
+   	echo "Shift Direction: ${SD[$((10#${F[3]}))]}"
+   	echo "Reverse: ${L[${F[4]}]}"
+   	echo "Tone Status: ${L[${F[5]}]}"
+   	echo "CTCSS Status: ${L[${F[6]}]}"
+   	echo "DCS Status: ${L[${F[7]}]}"
+   	echo "Tone Frequency: ${TF[$((10#${F[8]}))]} Hz"
+   	echo "CTCSS Frequency: ${TF[$((10#${F[9]}))]} Hz"
+   	echo "DCS Frequency: ${DCS[$((10#${F[10]}))]} Hz" 
+   	echo "Offset Frequency: $(PrintMHz ${F[11]}) MHz"
+   	echo "Modulation: ${M[${F[12]}]}" 
+   	if [[ $2 == "ME" ]]
+   	then
+      	#echo "Frequency?: $(PrintMHz ${F[13]}) MHz"
+      	#echo "Unknown Parameter: ${F[14]}"
+      	echo "Lockout: ${L[${F[15]}]}"
+   	fi
    fi
 }
 
@@ -351,6 +362,9 @@ MAXFREQ[B]="1300000000"
 declare -A SIDE
 SIDE[A]=0
 SIDE[B]=1
+
+MINCHAN=0
+MAXCHAN=999
 
 #============================
 #  PARSE OPTIONS WITH GETOPTS
@@ -565,22 +579,46 @@ case "$P1" in
             exit 0
             ;;
          MEM*)
-            if ((P3>=0 && P3<=999))
-            then
-               ANS="$(GetSet "ME $(printf "%03d" $((10#$P3)))")"
-               if [[ "$ANS" == "N" ]]
-               then
-                  echo "Memory $(printf "%03d" $((10#$P3))) is empty."
-               else
-                  PrintFreq "$ANS" "ME"
-                  ANS="$(GetSet "MN $(printf "%03d" $((10#$P3)))")"
-                  echo "Name: ${ANS#*,}"
-               fi
-               exit 0
-            else
-               Die "Memory location must be between 0 and 999"
-               exit 1
-            fi
+         	if [[ $P3 =~ ^[0-9]{1,3}-[0-9]{1,3}$ ]]
+         	then
+         		C1="$(echo "$P3" | cut -d'-' -f1)"
+         		C2="$(echo "$P3" | cut -d'-' -f2)"
+         		if (( C1 < C2 && C1 >= $MINCHAN && C2 <= $MAXCHAN ))
+         		then
+         			echo -e "Memory\t\tRX Freq\t\tRX Step\t\t\t\t\t\tTone\tCTCSS\tDCS\tOffset"
+         			echo -e "Channel\tName\t(MHz)\t\t(KHz)\tShift\tRev\tTone\tCTCSS\tDCS\t(Hz)\t(Hz)\t(Hz)\t(MHz)\tMod\tLockout"
+	            	for I in $(seq -f "%03g" $C1 $C2)
+   	         	do
+      	      		ANS="$(GetSet "ME $I")"
+         	   		if [[ "$ANS" == "N" ]]
+         	   		then
+         	   			echo -e "$I\tEmpty"
+         	   		else
+         	   			echo -n -e "$(echo "$(GetSet "MN $I")," | sed 's/,/\\t/g')" 
+         	   			PrintFreq "$ANS" "ME" "LIST"
+         	   		fi
+            		done
+            		exit 0
+            	else
+            		Die "Channel range must be between $MINCHAN and $MAXCHAN and lower number channel must be listed first"
+            		exit 1
+            	fi
+            elif [[ $P3 =~ ^[0-9]{1,3}$ ]] && ((P3>=$MINCHAN && P3<=$MAXCHAN))
+     		   then
+           	   ANS="$(GetSet "ME $(printf "%03d" $((10#$P3)))")"
+              	if [[ "$ANS" == "N" ]]
+              	then
+              		echo "Memory $(printf "%03d" $((10#$P3))) is empty."
+              	else
+              		PrintFreq "$ANS" "ME"
+              		ANS="$(GetSet "MN $(printf "%03d" $((10#$P3)))")"
+              		echo "Name: ${ANS#*,}"
+           		fi
+           		exit 0
+          	else
+          		Die "Must provide a channel between $MINCHAN and $MAXCHAN or a channel range, for example 1-100"
+          		exit 1
+           	fi
             ;;
 			MEN*)
 				GetSet "MU"
@@ -780,7 +818,7 @@ case "$P3" in
                ANS="$(GetSet "FO ${SIDE[$P2]},$(printf "%010d" $((10#$FR))),0,0,0,0,0,0,00,00,000,00000000,0")"
                $0 -p $PORT GET $P2 FREQ || Die
             else
-               Die "Frequency must be between $(PrintMHz ${MINFREQ[$P2]}) and $(PrintMHz ${MAXFREQ[$P2]})"
+               Die "Frequency must be between $(PrintMHz ${MINFREQ[$P2]}) and $(PrintMHz ${MAXFREQ[$P2]}) MHz"
             fi
             ;; 
       esac # $P1

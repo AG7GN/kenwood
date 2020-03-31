@@ -104,7 +104,7 @@
 #%  
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 5.1.2
+#-    version         ${SCRIPT_NAME} 5.1.3
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -172,7 +172,7 @@ function Die () {
 function GetSet () {
    RESULT="$($RIGCTL w "$1")"
    local CMD="$(echo $1 | cut -d' ' -f1)"
-   if [[ $RESULT =~ ^($CMD|N) ]]
+   if [[ $RESULT =~ ^($CMD|N|\?) ]]
    then
    	RESULT="$(echo $RESULT | cut -d' ' -f2- | tr -cd '\40-\176')"
    	echo "$RESULT"
@@ -495,7 +495,7 @@ fi
 
 RIGCTL="$(command -v rigctl) -m $DEV -r $PORT -s $SPEED"
 MODEL="$($RIGCTL w ID)"
-[[ $MODEL =~ ID ]] || Die "Unable to communicate with radio via $PORT @ $SPEED bps.\nCheck serial port connection to radio and make sure radio's \"PC PORT BAUDRATE\" is set to $SPEED.\nOn the TM-D710G, the serial cable must be plugged in to the PC port on the TX/RX Unit,\nnot the COM port on the Operation panel."
+[[ $MODEL =~ ^ID ]] || Die "Unable to communicate with radio via $PORT @ $SPEED bps.\nCheck serial port connection to radio and make sure radio's \"PC PORT BAUDRATE\" is set to $SPEED.\nOn the TM-D710G, the serial cable must be plugged in to the PC port on the TX/RX Unit,\nnot the COM port on the Operation panel."
 
 case "$P1" in
    GET)
@@ -610,7 +610,7 @@ case "$P1" in
               	then
               		echo "Memory $(printf "%03d" $((10#$P3))) is empty."
               	else
-              		PrintFreq "$ANS" "ME"
+              		PrintFreq "$ANS" "ME" ""
               		ANS="$(GetSet "MN $(printf "%03d" $((10#$P3)))")"
               		echo "Name: ${ANS#*,}"
            		fi
@@ -798,7 +798,7 @@ case "$P3" in
       case "$P1" in
          GET)
             ANS="$(GetSet "FO ${SIDE[$P2]}")" 
-            PrintFreq "$ANS" "FO"
+            PrintFreq "$ANS" "FO" ""
             ANS="$(GetSet "VM ${SIDE[$P2]}")" 
             echo -n "Side $P2 is in ${MODE1[$ANS]} mode.  "
 				if [[ ${MODE1[$ANS]} == "Memory" ]]
@@ -952,7 +952,7 @@ case "$P3" in
             ANS="$(GetSet "MR ${SIDE[$P2]},$(printf "%03d" $((10#$P4)))")"
             echo "Side: $P2"
             ANS="$(GetSet "ME ${ANS#*,}")"         
-            PrintFreq "$ANS" "ME"
+            PrintFreq "$ANS" "ME" ""
             ANS="$(GetSet "MN $(printf "%03d" $((10#$P4)))")"
             echo "Name: ${ANS#*,}"
          fi
@@ -961,7 +961,7 @@ case "$P3" in
       fi
       ;;
    *)
-      Die "Valid options are AIP, FREQUENCY, POWER, PTT, CTRL and COMMAND" 
+      Die "Valid options are AIP, FREQUENCY, MODE, POWER, PTTCTRL, PTT, CTRL, DATA, and MEMORY" 
 		;;
 esac
 

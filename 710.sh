@@ -34,7 +34,7 @@
 #%                                a VERY long time!
 #%  ${SCRIPT_NAME} [OPTIONS] get menu     Prints raw menu contents output 
 #%                                (diagnostic command)
-#%  ${SCRIPT_NAME} [OPTIONS] get mode     Prints mode (modulation) settings
+#%  ${SCRIPT_NAME} [OPTIONS] get a|b mode     Prints mode (modulation) settings
 #%  ${SCRIPT_NAME} [OPTIONS] get power    Prints power settings
 #%  ${SCRIPT_NAME} [OPTIONS] get pttctrl  Prints PTT and CTRL settings
 #%  ${SCRIPT_NAME} [OPTIONS] get speed    Prints external data speed (1200|9600)
@@ -42,8 +42,8 @@
 #%  ${SCRIPT_NAME} [OPTIONS] get a|b squelch
 #%                                Prints squelch settings for side A or B
 #%  ${SCRIPT_NAME} [OPTIONS] get timeout  Prints TX timeout setting
-#%  ${SCRIPT_NAME} [OPTIONS] get vhf|uhf aip 
-#%                                Prints AIP setting for VHF or UHF
+#%  ${SCRIPT_NAME} [OPTIONS] get aip 
+#%                                Prints Advanced Intercept Point setting for VHF and UHF
 #%  ${SCRIPT_NAME} [OPTIONS] set apo off|30|60|90|120|180     
 #%                                Sets Automatic Power Off (minutes)
 #%  ${SCRIPT_NAME} [OPTIONS] set a|b ctrl 
@@ -104,7 +104,7 @@
 #%  
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 5.1.3
+#-    version         ${SCRIPT_NAME} 5.1.5
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -209,21 +209,15 @@ function PrintDataSide () {
 }
 
 function PrintTimeout () {
-	local T=( "3" "5" "10" )
+	local T=( "3 minutes" "5 minutes" "10 minutes" )
    local MU=($(echo $1 | tr -s ',' ' '))
 	echo ${T[${MU[15]}]}
 }
 
-function PrintVHFAIP () {
-   local STATE=( "Off" "On" )
+function PrintAIP () {
+   local ST=( Off On )
    local MU=($(echo $1 | tr -s ',' ' '))
-	echo ${STATE[${MU[11]}]}
-}
-
-function PrintUHFAIP () {
-   local STATE=( "Off" "On" )
-   local MU=($(echo $1 | tr -s ',' ' '))
-	echo ${STATE[${MU[12]}]}
+	echo -e "VHF AIP is ${ST[${MU[11]}]}\nUHF AIP is ${ST[${MU[12]}]}"
 }
 
 function PrintAPO () {
@@ -360,11 +354,33 @@ MAXFREQ[A]="524000000"
 MAXFREQ[B]="1300000000"
 
 declare -A SIDE
-SIDE[A]=0
-SIDE[B]=1
+SIDE[A]=0; SIDE[B]=1; SIDE[0]="A"; SIDE[1]="B"
 
 MINCHAN=0
 MAXCHAN=999
+
+declare -A POWER
+POWER[H]=0; POWER[M]=1; POWER[L]=2
+POWER[0]="high"; POWER[1]="medium"; POWER[2]="low"
+
+declare -A MODE1
+MODE1[0]="VFO"; MODE1[1]="Memory"; MODE1[2]="Call"; MODE1[3]="WX"
+MODE1[VFO]=0; MODE1[MEMORY]=1; MODE1[CALL]=2; MODE1[WX]=3
+
+declare -A SQC
+SQC[OFF]=0; SQC[BUSY]=1; SQC[SQL]=2; SQC[TX]=3; SQC[BUSYTX]=4; SQC[SQLTX]=5
+
+declare -A APO
+APO[OFF]=0; APO[30]=1; APO[60]=2; APO=[90]=3; APO[120]=4; APO[180]=5
+
+declare -A TIMEOUT
+TIMEOUT[3]=0; TIMEOUT[5]=1; TIMEOUT[10]=2
+
+declare -A SPEED
+SPEED[1200]=0; SPEED[9600]=1
+
+declare -A STATE
+STATE[OFF]=0; STATE[ON]=1
 
 #============================
 #  PARSE OPTIONS WITH GETOPTS
@@ -504,28 +520,33 @@ case "$P1" in
             echo "Model: $(GetSet "ID")"
             echo "Serial: $(GetSet "AE")"
             echo "APO is $(PrintAPO $(GetSet "MU"))"
-            echo "TX Timeout is $(PrintTimeout $(GetSet "MU")) minutes"
+            echo "TX Timeout is $(PrintTimeout $(GetSet "MU"))"
             $0 -p $PORT GET PTTCTRL || Die 
             echo "External Data is on Side $(PrintDataSide $(GetSet "MU"))"
             echo "External data speed is $(PrintSpeed $(GetSet "MU"))"
-            $0 -p $PORT GET VHF AIP || Die
-            $0 -p $PORT GET UHF AIP || Die
+				PrintAIP $(GetSet "MU")
             echo "------------------------------------"
             $0 -p $PORT GET A FREQ || Die
-            $0 -p $PORT GET A POWER || Die
+            ANS="$(GetSet "PC 0")" 
+            echo "Side A is at ${POWER[${ANS#*,}]} power"
             echo "------------------------------------"
             $0 -p $PORT GET B FREQ || Die
-            $0 -p $PORT GET B POWER || Die
+            ANS="$(GetSet "PC 1")" 
+            echo "Side B is at ${POWER[${ANS#*,}]} power"
             exit 0
             ;;
-         A|B|VHF|UHF)
+         A|B)
             ;;
+         AIP)
+         	PrintAIP $(GetSet "MU")
+         	exit 0
+         	;; 
 			DATA)
 				echo "External Data is on Side $(PrintDataSide $(GetSet "MU"))"
 				exit 0
 				;;
 			TIME*)
-				echo "TX Timeout is $(PrintTimeout $(GetSet "MU")) minutes"
+				echo "TX Timeout is $(PrintTimeout $(GetSet "MU"))"
 				exit 0
 				;;
 			APO)
@@ -545,22 +566,16 @@ case "$P1" in
    			CTRL=${ANS%,*}           
    			PTT=${ANS#*,}
    			case "$PTT" in
-      			0)
-         			echo "PTT is on Side A"
-         			;;   
-      			1)
-         			echo "PTT is on Side B"
+      			0|1)
+         			echo "PTT is on Side ${SIDE[$PTT]}"
          			;;   
       			*)
          			Die "ERROR: Unable to determine PTT state $PTT"
 						;;
    			esac
    			case "$CTRL" in
-      			0)
-         			echo "CTRL is on Side A"
-         			;;   
-      			1)
-         			echo "CTRL is on Side B"
+      			0|1)
+         			echo "CTRL is on Side ${SIDE[$CTRL]}"
          			;;   
       			*)
          			Die "ERROR: Unable to determine CTRL state $CTRL."
@@ -569,13 +584,10 @@ case "$P1" in
             exit 0
             ;;
          PO*)
-            $0 -p $PORT GET A POWER || Die
-            $0 -p $PORT GET B POWER || Die
-            exit 0
-            ;;
-         MO*)
-            $0 -p $PORT GET A MODE || Die
-            $0 -p $PORT GET B MODE || Die
+            ANS="$(GetSet "PC 0")" 
+            echo "Side A is at ${POWER[${ANS#*,}]} power"
+            ANS="$(GetSet "PC 1")" 
+            echo "Side B is at ${POWER[${ANS#*,}]} power"
             exit 0
             ;;
          MEM*)
@@ -636,92 +648,53 @@ case "$P1" in
 			SP*) # External Data Speed
 				ANS="$(GetSet "MU")"
       		case $P3 in
-					1200)
-						ANS="$(GetSet "MU $(SetMenu $ANS 38 0)")"
-						;;
- 					9600)
-						ANS="$(GetSet "MU $(SetMenu $ANS 38 1)")"
+					1200|9600)
+						ANS="$(GetSet "MU $(SetMenu $ANS 38 ${SPEED[$P3]})")"
 						;;
 					*)
       				Die "Valid speed options are 1200 and 9600"
 			   		;;	
 				esac
-				$0 -p $PORT GET SPEED || Die
+				echo "External data speed is $(PrintSpeed $ANS)"
 				exit 0
 				;;
 			APO) # Auto power off
 				ANS="$(GetSet "MU")"
       		case $P3 in
-					OFF)
-						ANS="$(GetSet "MU $(SetMenu $ANS 36 0)")"
-						;;
-					30)
-						ANS="$(GetSet "MU $(SetMenu $ANS 36 1)")"
-						;;
-					60)
-						ANS="$(GetSet "MU $(SetMenu $ANS 36 2)")"
-						;;
-					90)
-						ANS="$(GetSet "MU $(SetMenu $ANS 36 3)")"
-						;;
-					120)
-						ANS="$(GetSet "MU $(SetMenu $ANS 36 4)")"
-						;;
-					180)
-						ANS="$(GetSet "MU $(SetMenu $ANS 36 5)")"
+					OFF|30|60|90|120|180)
+						ANS="$(GetSet "MU $(SetMenu $ANS 36 ${APO[$P3]})")"
 						;;
 					*)
       				Die "Valid APO options are off, 30, 60, 90, 120, 180"
 			   		;;	
 				esac
-				$0 -p $PORT GET APO || Die
+				echo "APO is $(PrintAPO $ANS)"
 				exit 0
 				;;
 			SQC) # SQC source
 				ANS="$(GetSet "MU")"
       		case $P3 in
-					OFF)
-						ANS="$(GetSet "MU $(SetMenu $ANS 39 0)")"
-						;;
-					BUSY)
-						ANS="$(GetSet "MU $(SetMenu $ANS 39 1)")"
-						;;
-					SQL)
-						ANS="$(GetSet "MU $(SetMenu $ANS 39 2)")"
-						;;
-					TX)
-						ANS="$(GetSet "MU $(SetMenu $ANS 39 3)")"
-						;;
-					BUSYTX)
-						ANS="$(GetSet "MU $(SetMenu $ANS 39 4)")"
-						;;
-					SQLTX)
-						ANS="$(GetSet "MU $(SetMenu $ANS 39 5)")"
+					OFF|BUSY|SQL|TX|BUSYTX|SQLTX)
+						ANS="$(GetSet "MU $(SetMenu $ANS 39 ${SQC[$P3]})")"
 						;;
 					*)
       				Die "Valid SQC options are off, busy, sql, tx, busytx, sqltx"
 			   		;;	
 				esac
-				$0 -p $PORT GET SQC || Die
+				echo "SQC source is $(PrintSQCsource $ANS)"
 				exit 0
 				;;
 			TIME*) # TX Timeout
 				ANS="$(GetSet "MU")"
       		case $P3 in
-					3)
-						ANS="$(GetSet "MU $(SetMenu $ANS 15 0)")"
-						;;
-					5)
-						ANS="$(GetSet "MU $(SetMenu $ANS 15 1)")"
-						;;
-					10)
-						ANS="$(GetSet "MU $(SetMenu $ANS 15 2)")"
+					3|5|10)
+						ANS="$(GetSet "MU $(SetMenu $ANS 15 ${TIMEOUT[$P3]})")"
 						;;
 					*)
       				Die "Valid timeout options are 3, 5, 10"
 			   		;;	
 				esac
-				$0 -p $PORT GET TIMEOUT || Die
+				echo "TX Timeout is $(PrintTimeout $ANS)"
 				exit 0
 				;;
          *)
@@ -738,142 +711,94 @@ case "$P1" in
       Usage
       ;;
    *)
-      Die "Valid commands are GET, SET, and HELP; also VHF and UHF for AIP." 
+      Die "Valid commands are GET, SET, and HELP." 
 		;;
 esac
-
-declare -a MODE1
-MODE1[0]="VFO"; MODE1[1]="Memory"; MODE1[2]="Call"; MODE1[3]="WX";
 
 case "$P3" in
 	AIP) # Advanced Intercept Point
 		ANS="$(GetSet "MU")"
 		case "$P2" in
 			VHF)
-				case "$P1" in
-					GET)
-						echo "VHF Advanced Intercept Point (AIP) is $(PrintVHFAIP $(GetSet "MU"))"
+            case "$P4" in
+					OFF|ON)
+						ANS="$(GetSet "MU $(SetMenu $ANS 11 ${STATE[$P4]})")"
 						;;
-					SET)
-		            case "$P4" in
-							OFF)
-								ANS="$(GetSet "MU $(SetMenu $ANS 11 0)")"
-								;;
-							ON)
-								ANS="$(GetSet "MU $(SetMenu $ANS 11 1)")"
-								;;
-							*) 
-								Die "AIP state must be OFF or ON"
-								;;
-						esac
-						echo "VHF Advanced Intercept Point (AIP) is $(PrintVHFAIP $(GetSet "MU"))"
+					*) 
+						Die "AIP state must be OFF or ON"
 						;;
 				esac
 				;;
 			UHF)
-				case "$P1" in
-					GET)
-						echo "UHF Advanced Intercept Point (AIP) is $(PrintUHFAIP $(GetSet "MU"))"
+            case "$P4" in
+					OFF|ON)
+						ANS="$(GetSet "MU $(SetMenu $ANS 12 ${STATE[$P4]})")"
 						;;
-					SET)
-		            case "$P4" in
-							OFF)
-								ANS="$(GetSet "MU $(SetMenu $ANS 12 0)")"
-								
-								;;
-							ON)
-								ANS="$(GetSet "MU $(SetMenu $ANS 12 1)")"
-								;;
-							*) 
-								Die "AIP state must be OFF or ON"
-								;;
-						esac
-						echo "UHF Advanced Intercept Point (AIP) is $(PrintUHFAIP $(GetSet "MU"))"
+					*) 
+						Die "AIP state must be OFF or ON"
 						;;
 				esac
 				;;
 		esac
+		PrintAIP $(GetSet "MU")
 		;;
-   F*) # Frequency
-      case "$P1" in
-         GET)
-            ANS="$(GetSet "FO ${SIDE[$P2]}")" 
-            PrintFreq "$ANS" "FO" ""
-            ANS="$(GetSet "VM ${SIDE[$P2]}")" 
-            echo -n "Side $P2 is in ${MODE1[$ANS]} mode.  "
-				if [[ ${MODE1[$ANS]} == "Memory" ]]
-				then
-					ANS="$(GetSet "MR ${SIDE[$P2]}")"
-					ANS="$(GetSet "MN ${ANS#*,}")"
-					echo "Memory location: $ANS"
-				else
-					echo
-				fi
-            ;;
-         SET)
-            FR=$(printf "%0.f" $(bc -l <<< "$P4*1000000"))
-            if (( $FR <= ${MAXFREQ[$P2]} )) && (( $FR >= ${MINFREQ[$P2]} ))
-            then
-               ANS="$(GetSet "VM ${SIDE[$P2]},0")" # Set side to VFO before setting frequency
-               ANS="$(GetSet "FO ${SIDE[$P2]},$(printf "%010d" $((10#$FR))),0,0,0,0,0,0,00,00,000,00000000,0")"
-               $0 -p $PORT GET $P2 FREQ || Die
-            else
-               Die "Frequency must be between $(PrintMHz ${MINFREQ[$P2]}) and $(PrintMHz ${MAXFREQ[$P2]}) MHz"
-            fi
-            ;; 
-      esac # $P1
+   FREQ*) # Frequency
+		if [[ $P1 == "SET" ]]
+		then
+        	[[ $P4 =~ ^[0-9]+([.][0-9]+)?$ ]] || Die "Frequency must be number between $(PrintMHz ${MINFREQ[$P2]}) and $(PrintMHz ${MAXFREQ[$P2]}) MHz"
+         FR=$(printf "%0.f" $(bc -l <<< "$P4*1000000"))
+         if (( $FR <= ${MAXFREQ[$P2]} )) && (( $FR >= ${MINFREQ[$P2]} ))
+         then
+            ANS="$(GetSet "VM ${SIDE[$P2]},0")" # Set side to VFO before setting frequency
+            ANS="$(GetSet "FO ${SIDE[$P2]},$(printf "%010d" $((10#$FR))),0,0,0,0,0,0,00,00,000,00000000,0")"
+         else
+            Die "Frequency must be number between $(PrintMHz ${MINFREQ[$P2]}) and $(PrintMHz ${MAXFREQ[$P2]}) MHz"
+         fi
+      fi
+      ANS="$(GetSet "FO ${SIDE[$P2]}")" 
+      PrintFreq "$ANS" "FO" ""
+      ANS="$(GetSet "VM ${SIDE[$P2]}")" 
+      echo -n "Side $P2 is in ${MODE1[${ANS#*,}]} mode"
+		if [[ ${MODE1[${ANS#*,}]} == "Memory" ]]
+		then
+			ANS="$(GetSet "MR ${SIDE[$P2]}")"
+			ANS="$(GetSet "MN ${ANS#*,}")"
+			echo ": Memory location: $ANS"
+		else
+			echo
+		fi
       ;;
    MO*) # Mode
-      case "$P1" in
-         GET)
-            ANS="$(GetSet "VM ${SIDE[$P2]}")" 
-            echo -n "Side $P2 is in ${MODE1[$ANS]} mode"
-				if [[ ${MODE1[$ANS]} == "Memory" ]]
-				then
-					ANS="$(GetSet "MR ${SIDE[$P2]}")"
-					echo ": Memory location ${ANS#*,}"
-				else
-					echo
-				fi
-            ;;
-         SET)
-            case "$P4" in
-               VFO)
-                  M=0
-                  ;;
-               MEMORY)
-                  M=1
-                  ;;
-               CALL)
-                  M=2
-                  ;;
-               WX)
-                  M=3
-                  ;;
-               *)
-                  Die "Valid modes are VFO, MEMORY, CALL, and WX"
-                  ;;
-            esac 
-            ANS="$(GetSet "VM ${SIDE[$P2]},$M")"
-            $0 -p $PORT GET $P2 MODE || Die
-            ;; 
-      esac # $P1
+      if [[ $P1 == "SET" ]]
+      then
+      	case "$P4" in
+            VFO|MEMORY|CALL|WX)
+               ANS="$(GetSet "VM ${SIDE[$P2]},${MODE1[$P4]}")"
+               ;;
+            *)
+               Die "Valid modes are VFO, MEMORY, CALL, and WX"
+               ;;
+         esac
+      fi 
+      ANS="$(GetSet "VM ${SIDE[$P2]}")"
+      echo -n "Side $P2 is in ${MODE1[${ANS#*,}]} mode"
+		if [[ ${MODE1[${ANS#*,}]} == "Memory" ]]
+		then
+			ANS="$(GetSet "MR ${SIDE[$P2]}")"
+			echo ": Memory location ${ANS#*,}"
+		else
+			echo
+		fi
       ;;
    PO*) # Power
       case "$P1" in
          GET)
             ANS="$(GetSet "PC ${SIDE[$P2]}")" 
-            declare -A POWER
-            POWER[0]="high"; POWER[1]="medium"; POWER[2]="low"
-            echo "Side $P2 is at ${POWER[${ANS#*,}]} power"
             ;;
          SET)
-            declare -A POWER
-            POWER[H]=0; POWER[M]=1; POWER[L]=2
             case "$P4" in
                H|M|L)
                   ANS="$(GetSet "PC ${SIDE[$P2]},${POWER[$P4]}")"
-                  $0 -p $PORT GET $P2 POWER || Die
                   ;; 
                *)
                   Die "Valid power settings are H, M, and L"
@@ -881,24 +806,24 @@ case "$P3" in
             esac
             ;;
       esac
+      echo "Side $P2 is at ${POWER[${ANS#*,}]} power"
       ;;
    SQ*) # Squelch
       case "$P1" in
          GET)
             ANS="$(GetSet "SQ ${SIDE[$P2]}")" 
-            echo "Side $P2 squelch is at $((16#${ANS#*,})) out of 31"
             ;;
          SET)
             if ((P4>=0 && P4<=31))
             then
                P4="$(printf "%02X" $P4)"
                ANS="$(GetSet "SQ ${SIDE[$P2]},$P4")" 
-               echo "Side $P2 squelch is at $((16#${ANS#*,})) out of 31"
             else
                Die "Valid squelch settings are between 0 and 31 inclusive"
             fi
             ;;
       esac
+      echo "Side $P2 squelch is at $((16#${ANS#*,})) out of 31"
       ;;
    PTTCTRL) # PTT/CTRL
       ANS="$(GetSet "BC ${SIDE[$P2]},${SIDE[$P2]}")" 
@@ -911,11 +836,10 @@ case "$P3" in
       if [[ "$P2" == "A" ]]
       then
          ANS="$(GetSet "BC $CTRL,0")" 
-         $0 -p $PORT GET PTTCTRL || Die
       else
          ANS="$(GetSet "BC $CTRL,1")" 
-         $0 -p $PORT GET PTTCTRL || Die
       fi      
+      $0 -p $PORT GET PTTCTRL || Die
       ;;
    CTRL) # CTRL
       ANS="$(GetSet "BC")"
@@ -924,11 +848,10 @@ case "$P3" in
       if [[ "$P2" == "A" ]]
       then
          ANS="$(GetSet "BC 0,$PTT")" 
-         $0 -p $PORT GET PTTCTRL || Die
       else
          ANS="$(GetSet "BC 1,$PTT")" 
-         $0 -p $PORT GET PTTCTRL || Die
       fi      
+      $0 -p $PORT GET PTTCTRL || Die
       ;;
 	DA*) # External Data Side
 		ANS="$(GetSet "MU")"
@@ -938,10 +861,16 @@ case "$P3" in
 		else
 			ANS="$(GetSet "MU $(SetMenu $ANS 37 1)")"
 		fi
-		$0 -p $PORT GET DATA || Die
+		# Setting PTT+CTRL is needed to refresh display after changing
+		# data side.  This is due to a bug in Kenwood firmware.
+      ANS="$(GetSet "BC")"
+      CTRL=${ANS%,*}           
+      PTT=${ANS#*,}
+      ANS="$(GetSet "BC $CTRL,$PTT")"
+		echo "External Data is on Side $(PrintDataSide $(GetSet "MU"))"
 		;;
    MEM*)
-      if ((P4>=0 && P4<=999))
+      if ((P4>=$MINCHAN && P4<=$MAXCHAN))
       then
          ANS="$(GetSet "ME $(printf "%03d" $((10#$P4)))")"
          if [[ "$ANS" == "N" ]]
@@ -957,11 +886,11 @@ case "$P3" in
             echo "Name: ${ANS#*,}"
          fi
       else
-         Die "Memory location must be between 0 and 999"
+         Die "Memory location must be between $MINCHAN and $MAXCHAN"
       fi
       ;;
    *)
-      Die "Valid options are AIP, FREQUENCY, MODE, POWER, PTTCTRL, PTT, CTRL, DATA, and MEMORY" 
+      Die "Valid $P1 options are AIP, FREQUENCY, MODE, POWER, PTTCTRL, PTT, CTRL, DATA, and MEMORY" 
 		;;
 esac
 

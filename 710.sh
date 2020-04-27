@@ -105,7 +105,7 @@
 #%  
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 5.1.8
+#-    version         ${SCRIPT_NAME} 5.1.9
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -553,7 +553,7 @@ case "$P1" in
 					echo "Transceiver firmware: $(echo "$(GetSet "FV 0")" | cut -d, -f3)"
 					echo "Operation panel firmware: $(echo "$(GetSet "FV 1")" | cut -d, -f3)"
 				else # This is a TM-V71A
-					echo "Transceiver firmware: $(echo "$ANS" | cut -d, -f3)"
+					echo "Transceiver firmware: $(echo "$(GetSet "FV 0")" | cut -d, -f3)"
 				fi
 				exit 0
 				;;

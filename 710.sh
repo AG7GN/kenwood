@@ -25,6 +25,7 @@
 #% COMMANDS
 #%  ${SCRIPT_NAME} [OPTIONS] get apo      Prints Auto Power Off setting
 #%  ${SCRIPT_NAME} [OPTIONS] get data     Prints the side configured for external data
+#%  ${SCRIPT_NAME} [OPTIONS] get firmware Prints firmware version
 #%  ${SCRIPT_NAME} [OPTIONS] get info     Prints some radio settings
 #%  ${SCRIPT_NAME} [OPTIONS] get memory <channel>|<Ch1>-<Ch2>   
 #%                                Prints memory channel information for a specific
@@ -104,7 +105,7 @@
 #%  
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 5.1.5
+#-    version         ${SCRIPT_NAME} 5.1.6
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -543,6 +544,12 @@ case "$P1" in
          	;; 
 			DATA)
 				echo "External Data is on Side $(PrintDataSide $(GetSet "MU"))"
+				exit 0
+				;;
+			FIRM*)
+				ANS="$(echo "$(GetSet "FV 1")" | cut -d, -f2-)"
+				echo "Transceiver firmware: $(echo "$ANS" | cut -d, -f1)"
+				echo "Operation panel firmware (710 only): $(echo "$ANS" | cut -d, -f2)"
 				exit 0
 				;;
 			TIME*)

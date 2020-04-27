@@ -105,7 +105,7 @@
 #%  
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 5.1.6
+#-    version         ${SCRIPT_NAME} 5.1.7
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -547,9 +547,16 @@ case "$P1" in
 				exit 0
 				;;
 			FIRM*)
-				ANS="$(echo "$(GetSet "FV 1")" | cut -d, -f2-)"
-				echo "Transceiver firmware: $(echo "$ANS" | cut -d, -f1)"
-				echo "Operation panel firmware (710 only): $(echo "$ANS" | cut -d, -f2)"
+				ID="$(GetSet "ID")"
+				if [[ $ID =~ 710 ]]
+				then # This is a TM-D710G				
+					ANS="$(echo "$(GetSet "FV 1")" | cut -d, -f2-)"
+					echo "Transceiver firmware: $(echo "$ANS" | cut -d, -f1)"
+					echo "Operation panel firmware: $(echo "$ANS" | cut -d, -f2)"
+				else # This is a TM-V71A
+					ANS="$(echo "$(GetSet "FV 0")" | cut -d, -f2-)"
+					echo "Transceiver firmware: $(echo "$ANS" | cut -d, -f1)"
+				fi
 				exit 0
 				;;
 			TIME*)

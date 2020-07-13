@@ -105,7 +105,7 @@
 #%  
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 5.1.9
+#-    version         ${SCRIPT_NAME} 5.1.10
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -372,7 +372,7 @@ declare -A SQC
 SQC[OFF]=0; SQC[BUSY]=1; SQC[SQL]=2; SQC[TX]=3; SQC[BUSYTX]=4; SQC[SQLTX]=5
 
 declare -A APO
-APO[OFF]=0; APO[30]=1; APO[60]=2; APO=[90]=3; APO[120]=4; APO[180]=5
+APO[OFF]=0; APO[30]=1; APO[60]=2; APO[90]=3; APO[120]=4; APO[180]=5
 
 declare -A TIMEOUT
 TIMEOUT[3]=0; TIMEOUT[5]=1; TIMEOUT[10]=2

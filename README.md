@@ -2,7 +2,7 @@
 Files related to Kenwood radios
 ## 710.sh  
 
-VERSION 20200124
+VERSION 20201018
 
 This script provides CAT control of a Kenwood TM-D710G or TM-V71A radio on a Raspberry Pi. It requires a serial/USB cable between the radio and the Pi.  An RT Systems programming cable will work, as will a Kenwood PG-5G or equivalent.  
 
@@ -47,11 +47,11 @@ To view the list of files that represent the USB-serial cables, open a terminal 
 
 You can optionally supply the serial port used to connect to your radio using the `-p PORT` argument.  For example:
 
-	tnc.sh -p /dev/ttyUSB0 set timeout 3
+	710.sh -p /dev/ttyUSB0 set timeout 3
 
 Alternatively, you optionally supply a string to grep (search) for in `/dev/serial/by-id` to determine the serial port used to connect to your radio using the `-s PORTSTRING` argument.  For example:
 
-	tnc.sh -s RT_Systems get info
+	710.sh -s RT_Systems get info
 
 If a port is supplied using `-p PORT`, it will take precedence over a string supplied by `-s PORTSTRING`."
 

@@ -2,13 +2,15 @@
 Files related to Kenwood radios
 ## 710.sh  
 
-VERSION 20201018
+VERSION 20201027
 
 This script provides CAT control of a Kenwood TM-D710G or TM-V71A radio on a Raspberry Pi. It requires a serial/USB cable between the radio and the Pi.  An RT Systems programming cable will work, as will a Kenwood PG-5G or equivalent.  
 
+The script uses `rigctl`, which is part of `Hamlib`, to talk to the radio.
+
 ## Install
 Pick either Easy or Manual Installation.
-### Easy Installation (for Hampi users)
+### Easy Installation (for Nexus users)
 - Make sure your Pi is connected to the Internet.
 - Click __Raspberry > Hamradio > Update Pi and Ham Apps__.
 - Check __710.sh__, click __OK__.

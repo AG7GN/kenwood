@@ -105,7 +105,7 @@
 #%  
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 5.1.10
+#-    version         ${SCRIPT_NAME} 5.1.11
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -283,7 +283,7 @@ function PrintFreq () {
          "455" "462" "464" "465" "466" "503" "506" "516" "523" "565" "532" "546" \
          "565" "606" "612" "624" "627" "631" "632" "654" "662" "664" "703" "712" \
          "723" "731" "732" "734" "743" "754" )
-   M=( "FM" "AM" "NFM" )
+   M=( "FM" "NFM" "AM" )
    L=( "Off" "On" )
    S=( "A" "B" )
    if [[ $2 == "ME" && $3 == "LIST" ]]

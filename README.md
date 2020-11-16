@@ -2,11 +2,15 @@
 Files related to Kenwood radios
 ## 710.sh  
 
-VERSION 20201027
+VERSION 20201116
 
-This script provides CAT control of a Kenwood TM-D710G or TM-V71A radio on a Raspberry Pi. It requires a serial/USB cable between the radio and the Pi.  An RT Systems programming cable will work, as will a Kenwood PG-5G or equivalent.  
+Two scripts that provide CAT control for Kenwood TM-D710G or TM-V71A radios on a Raspberry Pi. It requires a serial/USB cable between the radio and the Pi.  An RT Systems programming cable will work, as will a Kenwood PG-5G or equivalent. 
 
-The script uses `rigctl`, which is part of `Hamlib`, to talk to the radio.
+- `710.sh` is a shell script that you use in the Terminal.
+- `710.py` is a Python application that allows you to control the radio through a GUI that emulates the TM-D710G's screen, although it works with the TM-V71A as well.
+ 
+
+The `710.sh` script uses `rigctl`, which is part of `Hamlib`, to talk to the radio. `710.py` uses the Python serial library to communicate with the radio. `rigctl` is not needed.
 
 ## Install
 Pick either Easy or Manual Installation.
@@ -23,8 +27,26 @@ Pick either Easy or Manual Installation.
 		rm -rf kenwood/
 		git clone https://github.com/AG7GN/kenwood
 		sudo cp kenwood/710.sh /usr/local/bin/
+		sudo cp kenwood/*.py /usr/local/bin/
 
-## Run
+## Running `710.py`
+
+- Open a terminal and run:
+
+		710.py 
+		
+	By default, `710.py` will attempt to use `/dev/ttyUSB0` at 57600 baud to communicate with the radio. You can specify a different serial port or speed on the command line. Run `710.py -h` for instructions.  Running it with `-h` will display the available serial ports.
+	
+	For example, to use port `/dev/ttyUSB1` @ 19200 baud, run it like this:
+	
+		710.py -p /dev/tty/USB1 -b 19200
+
+	The baud rate must match the radio's __PC Port Baudrate__ (menu __920__) in the 710 and the equivalent in the 71A.
+	
+	The GUI features tool tips, which describe the different elements on the screen as you move your mouse over them.
+
+
+## Running `710.sh`
 - Open a terminal and run:
   
 		710.sh  
@@ -45,7 +67,7 @@ To view the list of files that represent the USB-serial cables, open a terminal 
 	ls -al /dev/serial/by-id
 	
 
-## Notes
+### Notes
 
 You can optionally supply the serial port used to connect to your radio using the `-p PORT` argument.  For example:
 

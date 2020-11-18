@@ -38,7 +38,7 @@ def cleanup():
         q_thread.join(timeout=2)
     except RuntimeError as _:
         print(f"{stamp()}: Thread stopped")
-    ser.close()
+    # ser.close()
     root.quit()
     root.update()
     print(f"{stamp()}: cleanup() completed")

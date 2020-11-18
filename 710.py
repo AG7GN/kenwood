@@ -5,11 +5,10 @@ import queue
 from threading import Thread
 import signal
 import tkinter as tk
-from tkinter.messagebox import showerror
 import datetime
 import kenwoodTM
 
-version = "0.1.1"
+version = "0.2.0"
 running = True
 device = '/dev/ttyUSB0'
 baud = 57600
@@ -48,7 +47,7 @@ def cleanup():
 def handle_query(cmd: str):
     result = mycat.query(cmd)
     if mycat.serial_port_error:
-        showerror("ERROR in handle_query", f"{stamp()} No response from radio")
+        print(f"{stamp()}: ERROR in handle_query: No response from radio")
         global exit_code
         exit_code = 1
         return None
@@ -96,9 +95,6 @@ def q_reader(sq: object):
             data = mycat.get_radio_status()
             if mycat.serial_port_error:
                 print(f"{stamp()}: q_reader ERROR: Could not retrieve data from radio")
-                running = False
-                showerror("ERROR in q_reader",
-                          f"{stamp()} Could not retrieve data from radio")
                 global exit_code
                 exit_code = 1
                 break

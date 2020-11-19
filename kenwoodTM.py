@@ -783,10 +783,11 @@ class KenwoodTMScreen:
                        content=KenwoodTMCat.data_speed_dict['inv'],
                        job_q=self._q)
         elif k == 'timeout':
+            current_timeout = re.sub("[^0-9]", "", self.timeout_button.cget('text'))
             RadioPopup(widget=self.timeout_button,
                        title=f"  TX Timeout (minutes)  ",
                        label=k,
-                       initial_value=KenwoodTMCat.timeout_dict['inv'][self.screen_label[s][k].cget('text')],
+                       initial_value=KenwoodTMCat.timeout_dict['inv'][current_timeout],
                        content=KenwoodTMCat.timeout_dict['inv'],
                        job_q=self._q)
         elif k == 'data':

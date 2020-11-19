@@ -105,7 +105,7 @@
 #%  
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 5.1.13
+#-    version         ${SCRIPT_NAME} 5.1.14
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0

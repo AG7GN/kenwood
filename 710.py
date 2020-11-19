@@ -8,7 +8,7 @@ import tkinter as tk
 import datetime
 import kenwoodTM
 
-version = "0.2.1"
+version = "1.0.0"
 running = True
 device = '/dev/ttyUSB0'
 baud = 57600
@@ -38,7 +38,7 @@ def cleanup():
         q_thread.join(timeout=2)
     except RuntimeError as _:
         print(f"{stamp()}: Thread stopped")
-    # ser.close()
+    ser.close()
     root.quit()
     root.update()
     print(f"{stamp()}: cleanup() completed")
@@ -348,7 +348,7 @@ if __name__ == "__main__":
                         type=int, default=baud,
                         help="Serial port speed (must match radio)")
     port_info = parser.parse_args()
-    print(f"Using {port_info.__dict__['port']} @ {port_info.__dict__['baudrate']} bps")
+    print(f"{stamp()}: Using {port_info.__dict__['port']} @ {port_info.__dict__['baudrate']} bps")
 
     try:
         ser = serial.Serial(**port_info.__dict__, timeout=0.1,
@@ -361,6 +361,15 @@ if __name__ == "__main__":
     myscreen = kenwoodTM.KenwoodTMScreen(root, version, q)
     mycat = kenwoodTM.KenwoodTMCat(ser)
 
+    # Commands to verify we can communicate with the radio. If all work,
+    # then there's a good chance the port isn't in use by another app
+    test_queries = ('MS', 'AE', 'ID')
+    for test in test_queries:
+        answer = mycat.query(test)
+        if not answer:
+            print(f"{stamp()}: ERROR: Could not communicate with radio.")
+            sys.exit(1)
+    print(f"{stamp()}: Found {answer[1]}")
     q_thread = Thread(target=q_reader, args=(q,))
     q_thread.start()
 

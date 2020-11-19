@@ -1,0 +1,7 @@
+#!/usr/bin/bash
+#
+#
+VERSION="1.0.0"
+sudo cp -f kenwood/710.sh /usr/local/bin/
+sudo cp -f kenwood/*.py /usr/local/bin/
+

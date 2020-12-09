@@ -727,6 +727,8 @@ class KenwoodTMScreen:
                         maxvalue=self.memory_limits['max'])
                 if user_input is not None:
                     self._q.put([k, s, f"{int(user_input):03d}"])
+            else:
+                print(f"{stamp()}: Side {s} is not in memory mode")
         elif k == 'tone':
             RadioPopup(widget=self.screen_label[s][k],
                        title=f"  Side {s} Tone Type  ",

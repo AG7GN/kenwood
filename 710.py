@@ -300,8 +300,11 @@ def q_reader(sq: object):
                     pass
                 arg = f"{arg_list[0]} {','.join(arg_list[1:])}"
                 print(f"{stamp()}: Sending '{arg}'")
-                if handle_query(arg) is None:
+                _ans = handle_query(arg)
+                if _ans is None:
                     break
+                elif arg_list[0] == 'MR' and _ans[0] == 'N':
+                    print(f"{stamp()}: Memory {channel} is empty")
             elif job[0] in ('ch_number',):
                 arg_list = get_arg_list()  # Get the channel data for current mode
                 if arg_list is None or arg_list[0] == 'N':
@@ -309,8 +312,11 @@ def q_reader(sq: object):
                 if arg_list[0] == 'ME':
                     arg = f"MR {'0' if job[1] == 'A' else '1'},{job[2]}"
                     print(f"{stamp()}: Sending '{arg}'")
-                    if handle_query(arg) is None:
+                    _ans = handle_query(arg)
+                    if _ans is None:
                         break
+                    elif _ans[0] == 'N':
+                        print(f"{stamp()}: Memory {int(job[2])} is empty")
             elif job[0] in ('micup', 'micdown',):
                 if job[0] == 'micup':
                     arg = "UP"

@@ -701,7 +701,7 @@ class KenwoodTMScreen:
         if s is None:
             print(f"{stamp()}: Widget '{k}' clicked.")
         else:
-            _label = self.screen_label[s][k].cget('text')
+            _label = str(self.screen_label[s][k].cget('text'))
             print(f"{stamp()}: Widget '{k}' on side {s} clicked. Value is "
                   f"'{_label}'")
         if k == 'frequency':
@@ -716,16 +716,17 @@ class KenwoodTMScreen:
             if user_input is not None:
                 self._q.put([k, s, user_input])
         elif k == 'ch_number':
-            user_input = \
-                simpledialog.askinteger(
-                    prompt=f"Enter desired channel number for "
-                           f"side {s}",
-                    title=f"{s} side Frequency",
-                    initialvalue=int(self.screen_label[s][k].cget('text')),
-                    minvalue=self.memory_limits['min'],
-                    maxvalue=self.memory_limits['max'])
-            if user_input is not None:
-                self._q.put([k, s, f"{int(user_input):03d}"])
+            if _label and _label.strip():
+                user_input = \
+                    simpledialog.askinteger(
+                        prompt=f"Enter desired channel number for "
+                        f"side {s}",
+                        title=f"{s} side Frequency",
+                        initialvalue=int(self.screen_label[s][k].cget('text')),
+                        minvalue=self.memory_limits['min'],
+                        maxvalue=self.memory_limits['max'])
+                if user_input is not None:
+                    self._q.put([k, s, f"{int(user_input):03d}"])
         elif k == 'tone':
             RadioPopup(widget=self.screen_label[s][k],
                        title=f"  Side {s} Tone Type  ",

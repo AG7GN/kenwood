@@ -711,7 +711,7 @@ class KenwoodTMScreen:
                     initialvalue=float(self.screen_label[s][k].cget('text')),
                     minvalue=self.frequency_limits[s]['min'],
                     maxvalue=self.frequency_limits[s]['max'])
-            if user_input:
+            if user_input is not None:
                 self._q.put([k, s, user_input])
         elif k == 'ch_number':
             user_input = \
@@ -722,7 +722,7 @@ class KenwoodTMScreen:
                     initialvalue=int(self.screen_label[s][k].cget('text')),
                     minvalue=self.memory_limits['min'],
                     maxvalue=self.memory_limits['max'])
-            if user_input:
+            if user_input is not None:
                 self._q.put([k, s, f"{int(user_input):03d}"])
         elif k == 'tone':
             RadioPopup(widget=self.screen_label[s][k],

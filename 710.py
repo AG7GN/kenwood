@@ -8,7 +8,7 @@ import tkinter as tk
 import datetime
 import kenwoodTM
 
-version = "1.0.2"
+version = "1.0.3"
 running = True
 device = '/dev/ttyUSB0'
 baud = 57600

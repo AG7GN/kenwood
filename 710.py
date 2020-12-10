@@ -8,7 +8,7 @@ import tkinter as tk
 import datetime
 import kenwoodTM
 
-version = "1.0.3"
+version = "1.1.0"
 running = True
 device = '/dev/ttyUSB0'
 baud = 57600
@@ -45,6 +45,7 @@ def cleanup():
 
 
 def handle_query(cmd: str):
+    myscreen.msg.mq.put(['INFO', f"{stamp()}: Sending '{cmd}'"])
     result = mycat.query(cmd)
     if mycat.serial_port_error:
         print(f"{stamp()}: ERROR in handle_query: No response from radio")
@@ -128,10 +129,9 @@ def q_reader(sq: object):
             job = sq.get()  # Get job from queue
             if job[0] == 'quit':
                 break
-            print(f'{stamp()}: Working on {job}')
+            myscreen.msg.mq.put(['INFO', f"{stamp()}: Working on {job}"])
             if job[0] in ('mode',):  # 'VM' command
                 arg = f"VM {mycat.side_dict['inv'][job[1]]},{job[2]}"
-                print(f"{stamp()}: Sending '{arg}'")
                 if handle_query(arg) is None:
                     break
             elif job[0] in ('tone', 'tone_frequency'):
@@ -175,7 +175,6 @@ def q_reader(sq: object):
                         mycat.tone_frequency_dict[current_type]['inv'][job[2]]
                 # Prepare the new command to change tone or tone frequency
                 arg = f"{arg_list[0]} {','.join(arg_list[1:])}"
-                print(f"{stamp()}: Sending '{arg}'")
                 if handle_query(arg) is None:
                     break
             elif job[0] in ('ptt', 'ctrl'):  # 'BC' command
@@ -188,12 +187,10 @@ def q_reader(sq: object):
                     arg = f"BC {ctrl},{mycat.side_dict['inv'][job[1]]}"
                 else:  # Setting ctrl
                     arg = f"BC {mycat.side_dict['inv'][job[1]]},{ptt}"
-                print(f"{stamp()}: Sending '{arg}'")
                 if handle_query(arg) is None:
                     break
             elif job[0] in ('power',):  # 'PC' command
                 arg = f"PC {mycat.side_dict['inv'][job[1]]},{job[2]}"
-                print(f"{stamp()}: Sending '{arg}'")
                 if handle_query(arg) is None:
                     break
             elif job[0] in ('rev',):
@@ -202,7 +199,6 @@ def q_reader(sq: object):
                     break
                 arg = f"AS {mycat.side_dict['inv'][job[1]]},"
                 arg += '{}'.format('1' if answer[2] == '0' else '0')
-                print(f"{stamp()}: Sending '{arg}'")
                 if handle_query(arg) is None:
                     break
             elif job[0] in ('lock',):
@@ -210,7 +206,6 @@ def q_reader(sq: object):
                 if answer is None:
                     break
                 arg = "LK {}".format('1' if answer[1] == '0' else '0')
-                print(f"{stamp()}: Sending '{arg}'")
                 if handle_query(arg) is None:
                     break
             elif job[0] in ('frequency', 'modulation', 'step'):
@@ -235,7 +230,6 @@ def q_reader(sq: object):
                     pass
                 # print(f"POST: {arg_list}")
                 arg = f"{arg_list[0]} {','.join(arg_list[1:])}"
-                print(f"{stamp()}: Sending '{arg}'")
                 if handle_query(arg) is None:
                     break
             elif job[0] in ('beep', 'vhf_aip', 'uhf_aip', 'speed',
@@ -266,7 +260,6 @@ def q_reader(sq: object):
                 else:
                     pass
                 arg = f"MU {','.join(mu_list[1:])}"
-                print(f"{stamp()}: Sending '{arg}'")
                 if handle_query(arg) is None:
                     break
             elif job[0] in ('up', 'down'):
@@ -299,36 +292,38 @@ def q_reader(sq: object):
                 else:
                     pass
                 arg = f"{arg_list[0]} {','.join(arg_list[1:])}"
-                print(f"{stamp()}: Sending '{arg}'")
                 _ans = handle_query(arg)
                 if _ans is None:
                     break
                 elif arg_list[0] == 'MR' and _ans[0] == 'N':
-                    print(f"{stamp()}: Memory {channel} is empty")
+                    myscreen.msg.mq.put(['ERROR',
+                                         f"{stamp()}: Memory "
+                                         f"{channel} is empty"])
             elif job[0] in ('ch_number',):
                 arg_list = get_arg_list()  # Get the channel data for current mode
                 if arg_list is None or arg_list[0] == 'N':
                     break
                 if arg_list[0] == 'ME':
                     arg = f"MR {'0' if job[1] == 'A' else '1'},{job[2]}"
-                    print(f"{stamp()}: Sending '{arg}'")
                     _ans = handle_query(arg)
                     if _ans is None:
                         break
                     elif _ans[0] == 'N':
-                        print(f"{stamp()}: Memory {int(job[2])} is empty")
+                        myscreen.msg.mq.put(['ERROR',
+                                             f"{stamp()}: Memory "
+                                             f"{int(job[2])} is empty"])
             elif job[0] in ('micup', 'micdown',):
                 if job[0] == 'micup':
                     arg = "UP"
                 else:
                     arg = "DW"
-                print(f"{stamp()}: Sending '{arg}'")
                 if handle_query(arg) is None:
                     break
             else:
                 pass
             sq.task_done()
-            print(f'{stamp()}: Finished {job}')
+            # print(f'{stamp()}: Finished {job}')
+            myscreen.msg.mq.put(['INFO', f"{stamp()}: Finished {job}"])
     print(f"{stamp()}: Leaving q_reader thread")
     cleanup()
 
@@ -371,11 +366,12 @@ if __name__ == "__main__":
     # then there's a good chance the port isn't in use by another app
     test_queries = ('MS', 'AE', 'ID')
     for test in test_queries:
-        answer = mycat.query(test)
-        if not answer:
+        query_answer = mycat.query(test)
+        if not query_answer:
             print(f"{stamp()}: ERROR: Could not communicate with radio.")
             sys.exit(1)
-    print(f"{stamp()}: Found {answer[1]}")
+    print(f"{stamp()}: Found {query_answer[1]}")
+    myscreen.msg.mq.put(['INFO', f"{stamp()}: Found {query_answer[1]}"])
     q_thread = Thread(target=q_reader, args=(q,))
     q_thread.start()
 

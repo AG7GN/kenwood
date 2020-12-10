@@ -4,6 +4,8 @@ import tkinter as tk
 from tkinter import simpledialog
 from tkinter import ttk
 import datetime
+from tkinter import scrolledtext
+import queue
 
 
 # noinspection PyTypeChecker
@@ -292,14 +294,6 @@ class KenwoodTMCat(object):
             self.display[self._side_dict[s]]['step'] = \
                 self._step_dict[result[3]]
 
-        # result = self.query(f"DL")
-        # if not result:
-        #     print(f"{stamp()}: ERROR: No response from radio")
-        #     return {}
-        # if result[1] == '0':
-        #     sides = ('0', '1')
-        # else:
-        #     sides = ('0',)
         sides = ('0', '1')
         result = self.query(f"BC")
         if not result:
@@ -503,8 +497,8 @@ class KenwoodTMScreen:
         self.master = master
         self._q = shared_queue
         # Make the root window
-        w = 785
-        h = 320
+        w = 790
+        h = 420
         ws = master.winfo_screenwidth()
         hs = master.winfo_screenheight()
         x = (ws // 2) - (w // 2)
@@ -537,9 +531,14 @@ class KenwoodTMScreen:
                                      bg=self._screen_bg_color,
                                      width=650)
         self.screen_frame.grid(column=0, row=0, rowspan=6,
-                               columnspan=15)
+                               columnspan=14, sticky='nsew')
 
-        # Make a vertical line separating the A and B sides of screen
+        self.msg_frame = tk.Frame(master=content_frame,
+                                  borderwidth=5, width=650)
+        self.msg_frame.grid(column=0, row=8, columnspan=14, sticky='nsew')
+        self.msg = MessageConsole(self.msg_frame)
+
+    # Make a vertical line separating the A and B sides of screen
         self.side_separator_frame = tk.Frame(master=self.screen_frame,
                                              padx=5, pady=3,
                                              bg=self._screen_bg_color)
@@ -585,7 +584,6 @@ class KenwoodTMScreen:
 
             bottom_btn_start_col = bottom_btns_frames[side]['col']
             for b, val in bottom_btns.items():
-                # print(b, side)
                 self.bottom_btn[side][b] = \
                     tk.Button(master=self.bottom_btn_frame[side],
                               text=b.upper(),
@@ -685,7 +683,7 @@ class KenwoodTMScreen:
                                     font=self._button_font,
                                     command=lambda:
                                     self._q.put(['quit', ]))
-            quit_button.grid(row=8, column=0, columnspan=14, sticky='nsew')
+            quit_button.grid(row=13, column=0, columnspan=14, sticky='nsew')
 
     def widget_clicked(self, **kwargs):
 
@@ -699,11 +697,11 @@ class KenwoodTMScreen:
         else:
             k = None
         if s is None:
-            print(f"{stamp()}: Widget '{k}' clicked.")
+            self.msg.mq.put(['INFO', f"{stamp()}: Widget '{k}' clicked."])
         else:
             _label = str(self.screen_label[s][k].cget('text'))
-            print(f"{stamp()}: Widget '{k}' on side {s} clicked. Value is "
-                  f"'{_label}'")
+            self.msg.mq.put(['INFO', f"{stamp()}: Widget '{k}' on side "
+                                     f"{s} clicked. Value is '{_label}'"])
         if k == 'frequency':
             user_input = \
                 simpledialog.askfloat(
@@ -720,7 +718,7 @@ class KenwoodTMScreen:
                 user_input = \
                     simpledialog.askinteger(
                         prompt=f"Enter desired channel number for "
-                        f"side {s}",
+                               f"side {s}",
                         title=f"{s} side Frequency",
                         initialvalue=int(self.screen_label[s][k].cget('text')),
                         minvalue=self.memory_limits['min'],
@@ -728,7 +726,8 @@ class KenwoodTMScreen:
                 if user_input is not None:
                     self._q.put([k, s, f"{int(user_input):03d}"])
             else:
-                print(f"{stamp()}: Side {s} is not in memory mode")
+                self.msg.mq.put(['ERROR', f"{stamp()}: Side {s} is not "
+                                 "in memory mode. Cannot set memory location."])
         elif k == 'tone':
             RadioPopup(widget=self.screen_label[s][k],
                        title=f"  Side {s} Tone Type  ",
@@ -825,6 +824,44 @@ class KenwoodTMScreen:
             self.bottom_btn_frame[side].config(background=self._screen_bg_color)
 
 
+class MessageConsole(object):
+
+    _msg_console_font = ("TkFixedFont", 12)
+
+    def __init__(self, frame):
+        self.frame = frame
+        self.msg_text = scrolledtext.ScrolledText(master=self.frame,
+                                                  state='disabled',
+                                                  wrap=tk.WORD,
+                                                  width=75, height=5,
+                                                  font=self._msg_console_font)
+        self.msg_text.grid(row=0, column=0, sticky='nsew')
+        self.msg_text.tag_configure('INFO', foreground='blue')
+        self.msg_text.tag_configure('WARNING', foreground='orange')
+        self.msg_text.tag_configure('ERROR', foreground='red')
+        self.mq = queue.Queue()
+        self.frame.after(100, self.mq_reader)
+
+    def display_message(self, msg):
+        _level, _m = msg
+        self.msg_text.configure(state='normal')
+        self.msg_text.insert(tk.END, _m + '\n', _level)
+        self.msg_text.configure(state='disabled')
+        # Autoscroll to the bottom
+        self.msg_text.yview(tk.END)
+
+    def mq_reader(self):
+        while True:
+            try:
+                message = self.mq.get(block=False)
+            except queue.Empty:
+                break
+            else:
+                self.display_message(message)
+                self.mq.task_done()
+        self.frame.after(100, self.mq_reader)
+
+
 class Popup(object):
     """
     Class that creates a popup window for entering data
@@ -857,7 +894,8 @@ class Popup(object):
         try:
             self.pop.destroy()
         except AttributeError:
-            print(f"{stamp()}: Popup already closed")
+            # popup already closed
+            pass
 
 
 class ComboPopup(Popup):

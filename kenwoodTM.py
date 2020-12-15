@@ -6,6 +6,7 @@ from tkinter import ttk
 import datetime
 from tkinter import scrolledtext
 import queue
+import sys
 
 
 # noinspection PyTypeChecker
@@ -238,10 +239,11 @@ class KenwoodTMCat(object):
             # with a ',' so we can include it in the returned tuple
             answer = re.sub(' ', ',', self.sio.readline())
         except Exception as e:
-            print(f"{stamp()}: Serial Port ERROR: {e}")
+            print(f"{stamp()}: Serial Port ERROR: {e}", file=sys.stderr)
             self.serial_port_error = True
             return ()
-        if answer and answer != '?':
+        # if answer and answer != '?':
+        if answer:
             # Remove trailing \r and convert string to tuple
             return tuple(answer[:-1].split(','))
         else:
@@ -297,7 +299,8 @@ class KenwoodTMCat(object):
         sides = ('0', '1')
         result = self.query(f"BC")
         if not result:
-            print(f"{stamp()}: ERROR: No response from radio")
+            print(f"{stamp()}: ERROR: No response from radio",
+                  file=sys.stderr)
             return {}
         self.display['A']['ctrl'] = 'CTRL' if result[1] == '0' else '   '
         self.display['B']['ctrl'] = 'CTRL' if result[1] == '1' else '   '
@@ -307,14 +310,16 @@ class KenwoodTMCat(object):
             # Determine current mode (VFO, Memory, Call)
             result = self.query(f"VM {s}")
             if not result:
-                print(f"{stamp()}: ERROR: No response from radio")
+                print(f"{stamp()}: ERROR: No response from radio",
+                      file=sys.stderr)
                 return {}
             if self._mode_dict[result[2]] == 'MR':
                 # This side is in Memory mode
                 # Retrieve memory channel
                 result = self.query(f"MR {s}")
                 if not result:
-                    print(f"{stamp()}: ERROR: No response from radio")
+                    print(f"{stamp()}: ERROR: No response from radio",
+                          file=sys.stderr)
                     return {}
                 ch_num_raw = result[2]  # Unformatted channel number
                 # Save the channel number to the display dictionary
@@ -323,13 +328,15 @@ class KenwoodTMCat(object):
                 # Retrieve display information for this memory channel
                 result = self.query(f"FO {s}")
                 if not result:
-                    print(f"{stamp()}: ERROR: No response from radio")
+                    print(f"{stamp()}: ERROR: No response from radio",
+                          file=sys.stderr)
                     return {}
                 common_elements('MR')
                 # Retrieve the channel name
                 result = self.query(f"MN {ch_num_raw}")
                 if not result:
-                    print(f"{stamp()}: ERROR: No response from radio")
+                    print(f"{stamp()}: ERROR: No response from radio",
+                          file=sys.stderr)
                     return {}
                 self.display[self._side_dict[s]]['ch_name'] = \
                     result[2]
@@ -337,7 +344,8 @@ class KenwoodTMCat(object):
                 # This side is in VFO mode. Retrieve FO data
                 result = self.query(f"FO {s}")
                 if not result:
-                    print(f"{stamp()}: ERROR: No response from radio")
+                    print(f"{stamp()}: ERROR: No response from radio",
+                          file=sys.stderr)
                     return {}
                 common_elements('VFO')
                 self.display[self._side_dict[s]]['ch_number'] = '  '
@@ -347,7 +355,8 @@ class KenwoodTMCat(object):
                 # result = self.query(f"CC {s}")
                 result = self.query(f"FO {s}")
                 if not result:
-                    print(f"{stamp()}: ERROR: No response from radio")
+                    print(f"{stamp()}: ERROR: No response from radio",
+                          file=sys.stderr)
                     return {}
                 common_elements('CALL')
                 self.display[self._side_dict[s]]['ch_number'] = '  '
@@ -357,7 +366,8 @@ class KenwoodTMCat(object):
                 # result = self.query(f"CC {s}")
                 result = self.query(f"FO {s}")
                 if not result:
-                    print(f"{stamp()}: ERROR: No response from radio")
+                    print(f"{stamp()}: ERROR: No response from radio",
+                          file=sys.stderr)
                     return {}
                 common_elements('WX')
                 self.display[self._side_dict[s]]['ch_number'] = '  '
@@ -367,18 +377,21 @@ class KenwoodTMCat(object):
             # Power
             result = self.query(f"PC {s}")
             if not result:
-                print(f"{stamp()}: ERROR: No response from radio")
+                print(f"{stamp()}: ERROR: No response from radio",
+                      file=sys.stderr)
                 return {}
             self.display[self._side_dict[s]]['power'] = self._power_dict[result[2]]
             result = self.query(f"AS {s}")
             if not result:
-                print(f"{stamp()}: ERROR: No response from radio")
+                print(f"{stamp()}: ERROR: No response from radio",
+                      file=sys.stderr)
                 return {}
             self.display[self._side_dict[s]]['reverse'] = self._reverse_dict[result[2]]
         # Data side
         result = self.query(f"MU")
         if not result:
-            print(f"{stamp()}: ERROR: No response from radio")
+            print(f"{stamp()}: ERROR: No response from radio",
+                  file=sys.stderr)
             return {}
         self.display[self._side_dict['0']]['data'] = \
             'D' if result[38] == '0' else \
@@ -398,7 +411,8 @@ class KenwoodTMCat(object):
         # Lock state
         result = self.query(f"LK")
         if not result:
-            print(f"{stamp()}: ERROR: No response from radio")
+            print(f"{stamp()}: ERROR: No response from radio",
+                  file=sys.stderr)
             return {}
         self.display['lock'] = self._lock_dict[result[1]]
         return self.display
@@ -992,7 +1006,8 @@ if __name__ == "__main__":
         ser = serial.Serial(**port_info.__dict__, timeout=0.1,
                             writeTimeout=0.1)
     except serial.serialutil.SerialException:
-        print(f"{stamp()}: ERROR: Could not open serial port")
+        print(f"{stamp()}: ERROR: Could not open serial port",
+              file=sys.stderr)
         sys.exit(1)
 
     radio = KenwoodTMCat(ser)

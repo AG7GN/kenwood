@@ -105,7 +105,7 @@
 #%  
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 5.1.14
+#-    version         ${SCRIPT_NAME} 5.2.0
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -116,6 +116,7 @@
 #     20200203 : Steve Magnuson : New script template
 #     20200330 : Steve Magnuson : Improved debugging of serial port problems, added
 #                                 ability to print multiple memory locations.
+#     20201215 : Steve Magnuson : Removed dependency on rigctl. Now uses 710.py.
 # 
 #================================================================
 #  DEBUG OPTION
@@ -171,7 +172,8 @@ function Die () {
 #----------------------------
 
 function GetSet () {
-   RESULT="$($RIGCTL w "$1")"
+   RESULT="$($RIGCTL -c "$1")"
+   [[ $? == 0 ]] || Die "Unable to communicate with radio via $PORT @ $SPEED bps.\nCheck serial port connection to radio and make sure radio's \"PC PORT BAUDRATE\" is set to $SPEED.\nOn the TM-D710G, the serial cable must be plugged in to the PC port on the TX/RX Unit,\nnot the COM port on the Operation panel."
    local CMD="$(echo $1 | cut -d' ' -f1)"
    if [[ $RESULT =~ ^($CMD|N|\?) ]]
    then
@@ -339,7 +341,6 @@ SCRIPT_HEADSIZE=$(grep -sn "^# END_OF_HEADER" ${0} | head -1 | cut -f1 -d:)
 #}
 VERSION="$(ScriptInfo version | grep version | tr -s ' ' | cut -d' ' -f 4)" 
 
-DEV=234
 SPEED=57600
 DIR="/dev/serial/by-id"
 # The following PORTSTRING will be used if the '-s PORTSTRING' argument is not supplied
@@ -482,7 +483,7 @@ $DEBUG && set -x
 (( $# == 0 )) && Usage
 
 command -v bc >/dev/null || Die "Cannot find bc application.  To install it, run: sudo apt update && sudo apt install -y bc"
-command -v rigctl >/dev/null || Die "Cannot find rigctl application.  Install hamlib."
+command -v 710.py >/dev/null || Die "Cannot find 710.py."
 
 P1="${1^^}"
 P2="${2^^}"
@@ -510,9 +511,9 @@ then # User did not supply serial port.  Search for it using $PORTSTRING
 	esac
 fi
 
-RIGCTL="$(command -v rigctl) -m $DEV -r $PORT -s $SPEED"
-MODEL="$($RIGCTL w ID)"
-[[ $MODEL =~ ^ID ]] || Die "Unable to communicate with radio via $PORT @ $SPEED bps.\nCheck serial port connection to radio and make sure radio's \"PC PORT BAUDRATE\" is set to $SPEED.\nOn the TM-D710G, the serial cable must be plugged in to the PC port on the TX/RX Unit,\nnot the COM port on the Operation panel."
+pgrep -f 710.py >/dev/null 2>&1 && Die "Cannot run this script while 710.py is running."
+RIGCTL="$(command -v 710.py) -p $PORT -b $SPEED"
+MODEL="$(GetSet "ID")"
 
 case "$P1" in
    GET)

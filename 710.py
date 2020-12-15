@@ -8,7 +8,7 @@ import tkinter as tk
 import datetime
 import kenwoodTM
 
-version = "1.1.0"
+version = "1.2.0"
 running = True
 device = '/dev/ttyUSB0'
 baud = 57600
@@ -48,7 +48,8 @@ def handle_query(cmd: str):
     myscreen.msg.mq.put(['INFO', f"{stamp()}: Sending '{cmd}'"])
     result = mycat.query(cmd)
     if mycat.serial_port_error:
-        print(f"{stamp()}: ERROR in handle_query: No response from radio")
+        print(f"{stamp()}: ERROR in handle_query: No response from radio",
+              file=sys.stderr)
         global exit_code
         exit_code = 1
         return None
@@ -95,7 +96,8 @@ def q_reader(sq: object):
             # print("queue empty. update display")
             data = mycat.get_radio_status()
             if mycat.serial_port_error:
-                print(f"{stamp()}: q_reader ERROR: Could not retrieve data from radio")
+                print(f"{stamp()}: q_reader ERROR: Could not retrieve "
+                      f"data from radio", file=sys.stderr)
                 global exit_code
                 exit_code = 1
                 break
@@ -333,7 +335,10 @@ if __name__ == "__main__":
     from serial.tools import list_ports
 
     signal.signal(signal.SIGINT, sigint_handler)
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="CAT control for Kenwood TM-D710G/TM=V71A")
+
+    parser.add_argument('-v', '--version', action='version',
+                        version=f"Version: {version}")
     parser.add_argument("-p", "--port",
                         choices=[comport.device for comport
                                  in serial.tools.list_ports.comports()],
@@ -348,19 +353,34 @@ if __name__ == "__main__":
                                  38400, 57600],
                         type=int, default=baud,
                         help="Serial port speed (must match radio)")
-    port_info = parser.parse_args()
-    print(f"{stamp()}: Using {port_info.__dict__['port']} @ {port_info.__dict__['baudrate']} bps")
+    parser.add_argument("-c", "--command",
+                        type=str, help="CAT command to send to radio (no GUI)")
+    arg_info = parser.parse_args()
+    if not arg_info.command:
+        print(f"{stamp()}: Using {arg_info.port} @ {arg_info.baudrate} bps")
 
     try:
-        ser = serial.Serial(**port_info.__dict__, timeout=0.1,
+        ser = serial.Serial(arg_info.port, arg_info.baudrate, timeout=0.1,
                             writeTimeout=0.1)
     except serial.serialutil.SerialException:
-        print(f"{stamp()}: ERROR: Could not open serial port")
+        print(f"{stamp()}: ERROR: Could not open serial port",
+              file=sys.stderr)
         sys.exit(1)
+    mycat = kenwoodTM.KenwoodTMCat(ser)
+
+    if arg_info.command:
+        query_answer = mycat.query(arg_info.command)
+        if query_answer:
+            print(f"{query_answer[0]} {','.join(query_answer[1:])}")
+            sys.exit(0)
+        else:
+            print(f"{stamp()}: ERROR: Could not communicate with radio.",
+                  file=sys.stderr)
+            sys.exit(1)
+
     root = tk.Tk()
     q = queue.Queue()
     myscreen = kenwoodTM.KenwoodTMScreen(root, version, q)
-    mycat = kenwoodTM.KenwoodTMCat(ser)
 
     # Commands to verify we can communicate with the radio. If all work,
     # then there's a good chance the port isn't in use by another app

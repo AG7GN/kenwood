@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
+"""
+Implements a GUI that allows the user to control some functions of the
+Kenwood TM-D710G and TM-V71A radios.
+"""
 import serial
+import os
+import re
 import sys
 import queue
 from threading import Thread
@@ -8,7 +14,14 @@ import tkinter as tk
 import datetime
 import kenwoodTM
 
-version = "1.2.0"
+__author__ = "Steve Magnuson AG7GN"
+__copyright__ = "Copyright 2020, Steve Magnuson"
+__credits__ = ["Steve Magnuson"]
+__license__ = "GPL"
+__version__ = "1.2.0"
+__maintainer__ = "Steve Magnuson"
+__email__ = "ag7gn@arrl.net"
+__status__ = "Production"
 running = True
 device = '/dev/ttyUSB0'
 baud = 57600
@@ -330,24 +343,57 @@ def q_reader(sq: object):
     cleanup()
 
 
+def get_ports():
+    """
+    Walks /dev searching for paths with filnames or symlinks to filenames containing
+    ^tty(AMA[0-9]|S[0-9]|USB[0-9]). Returns a list of matching paths,
+    or empty list if there are no matches.
+    """
+    ports = []
+    excludes = ["char", "by-path"]
+    for _root, dirs, files in os.walk('/dev'):
+        dirs[:] = [dirname for dirname in dirs if dirname not in excludes]
+        for filename in files:
+            path = os.path.join(_root, filename)
+            if os.path.islink(path):  # Found a symlink
+                target_path = os.readlink(path)
+                # Resolve relative symlinks
+                if not os.path.isabs(target_path):
+                    target_path = os.path.join(os.path.dirname(path),
+                                               target_path)
+                if os.path.exists(target_path) and \
+                        re.match('^tty(AMA[0-9]|S[0-9]|USB[0-9])',
+                                 os.path.basename(os.readlink(path))):
+                    ports.append(path)
+            elif re.match('^tty(AMA[0-9]|S[0-9]|USB[0-9])', filename):
+                # Not a symlink. Look for the usual serial port names and add them to list
+                ports.append(path)
+            else:  # Not interested in anything else
+                continue
+    return ports
+
+
 if __name__ == "__main__":
     import argparse
-    from serial.tools import list_ports
 
+    port_list = get_ports()
+    if not port_list:
+        print(f"{stamp()}: ERROR: No serial ports found.",
+              file=sys.stderr)
+        sys.exit(1)
+    if device not in port_list:
+        device = port_list[0]
     signal.signal(signal.SIGINT, sigint_handler)
-    parser = argparse.ArgumentParser(description="CAT control for Kenwood TM-D710G/TM=V71A")
+    parser = argparse.ArgumentParser(prog='710.py',
+                                     description=f"CAT control for Kenwood TM-D710G/TM=V71A",
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('-v', '--version', action='version',
-                        version=f"Version: {version}")
+                        version=f"Version: {__version__}")
     parser.add_argument("-p", "--port",
-                        choices=[comport.device for comport
-                                 in serial.tools.list_ports.comports()],
+                        choices=port_list,
                         type=str, default=device,
                         help="Serial port connected to radio")
-    # parser.add_argument("-p", "--port",
-    #                     choices=serialportlist.serial_ports(),
-    #                     type=str, default=device,
-    #                     help="Serial port")
     parser.add_argument("-b", "--baudrate",
                         choices=[300, 1200, 2400, 4800, 9600, 19200,
                                  38400, 57600],
@@ -378,9 +424,15 @@ if __name__ == "__main__":
                   file=sys.stderr)
             sys.exit(1)
 
+    if os.environ.get('DISPLAY', '') == '':
+        print(f"{stamp()}: No $DISPLAY environment. "
+              f"Only '-c' option works without X", file=sys.stderr)
+        sys.exit(1)
+        # os.environ.__setitem__('DISPLAY', ':0.0')
+
     root = tk.Tk()
     q = queue.Queue()
-    myscreen = kenwoodTM.KenwoodTMScreen(root, version, q)
+    myscreen = kenwoodTM.KenwoodTMScreen(root, __version__, q)
 
     # Commands to verify we can communicate with the radio. If all work,
     # then there's a good chance the port isn't in use by another app
@@ -397,12 +449,9 @@ if __name__ == "__main__":
 
     # root.bind('<Escape>', lambda e: cleanup())
     # Stop program if Esc key pressed
-    # root.bind('<Escape>', lambda e: signal.raise_signal(signal.SIGINT))
     root.bind('<Escape>', lambda e: stop_q_reader())
     # Stop program if window is closed at OS level ('X' in upper right
     # corner or red dot in upper left on Mac)
-    # root.protocol("WM_DELETE_WINDOW",
-    #               lambda: signal.raise_signal(signal.SIGINT))
     root.protocol("WM_DELETE_WINDOW",
                   lambda: stop_q_reader())
     print(f"{stamp()}: Starting mainloop")

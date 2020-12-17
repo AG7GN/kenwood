@@ -1,12 +1,29 @@
+#!/usr/bin/env python3
+"""Provides KenwoodTMCat and KenwoodTMScreen classes for 710.py
+
+KenwoodTMCat implements the CAT interface for the Kenwood TM-D710G and
+TM-V71A radios.
+KenwoodTMScreen renders a facsimile of the Kenwood TM-D710G in a tkinter
+window.
+"""
 import io
 import re
+import sys
 import tkinter as tk
 from tkinter import simpledialog
 from tkinter import ttk
 import datetime
 from tkinter import scrolledtext
 import queue
-import sys
+
+__author__ = "Steve Magnuson AG7GN"
+__copyright__ = "Copyright 2020, Steve Magnuson"
+__credits__ = ["Steve Magnuson"]
+__license__ = "GPL"
+__version__ = "1.0.1"
+__maintainer__ = "Steve Magnuson"
+__email__ = "ag7gn@arrl.net"
+__status__ = "Production"
 
 
 # noinspection PyTypeChecker
@@ -976,38 +993,3 @@ class ToolTip(object):
 
 def stamp():
     return datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
-
-
-if __name__ == "__main__":
-    import serial
-    import sys
-    import argparse
-    from serial.tools import list_ports
-
-    device = '/dev/cu.usbserial-RT1RVT5Y'
-    baud = 57600
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-p", "--port",
-                        choices=[comport.device for comport
-                                 in serial.tools.list_ports.comports()],
-                        type=str, default=device,
-                        help="Serial port connected to radio")
-    parser.add_argument("-b", "--baudrate",
-                        choices=[300, 1200, 2400, 4800, 9600, 19200,
-                                 38400, 57600],
-                        type=int, default=baud,
-                        help="Serial port speed (must match radio)")
-    port_info = parser.parse_args()
-    print(f"{stamp()}: Using {port_info.__dict__['port']} @ "
-          f"{port_info.__dict__['baudrate']} bps")
-
-    try:
-        ser = serial.Serial(**port_info.__dict__, timeout=0.1,
-                            writeTimeout=0.1)
-    except serial.serialutil.SerialException:
-        print(f"{stamp()}: ERROR: Could not open serial port",
-              file=sys.stderr)
-        sys.exit(1)
-
-    radio = KenwoodTMCat(ser)

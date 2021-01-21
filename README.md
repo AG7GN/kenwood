@@ -28,6 +28,7 @@ Pick either Easy or Manual Installation.
 		git clone https://github.com/AG7GN/kenwood
 		sudo cp kenwood/710.sh /usr/local/bin/
 		sudo cp kenwood/*.py /usr/local/bin/
+		sudo cp kenwood/*.png /usr/share/pixmaps/
 
 ## Running `710.py`
 
@@ -44,6 +45,29 @@ Pick either Easy or Manual Installation.
 	The baud rate must match the radio's __PC Port Baudrate__ (menu __920__) in the 710 and the equivalent in the 71A.
 	
 	The GUI features tool tips, which describe the different elements on the screen as you move your mouse over them.
+	
+	If you want the GUI to use a smaller desktop footprint, add the `--small` argument to `710.py`.
+	
+## Make a __Hamradio__ menu selection for `710.py`
+
+- Using your favorite text editor, create a file called `$HOME/.local/share/applications/kenwoodtm.desktop`
+
+- Enter this text in the file:
+
+		[Desktop Entry]
+		Name=TM-D710G Controller
+		Comment=Kenwood TM-D710G/TM-V71A Controller
+		Exec=sh -c "710.py -p /dev/kenwood --small >/dev/null 2>&1"
+		Icon=hamradio.png
+		StartupNotify=true
+		Terminal=false
+		Type=Application
+		Categories=HamRadio
+		Keywords=Ham Radio;Rig Control
+
+- Change the `Exec=` line to add/remove/modify arguments for your particular serial port/speed. Omit the `--small` if you want to run the GUI in regular size.
+
+- Change the `Name=` line to suit. This is the menu item name.
 
 
 ## Running `710.sh`

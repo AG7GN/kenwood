@@ -18,7 +18,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2020, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL"
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -387,7 +387,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='710.py',
                                      description=f"CAT control for Kenwood TM-D710G/TM=V71A",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-
     parser.add_argument('-v', '--version', action='version',
                         version=f"Version: {__version__}")
     parser.add_argument("-p", "--port",
@@ -401,6 +400,8 @@ if __name__ == "__main__":
                         help="Serial port speed (must match radio)")
     parser.add_argument("-c", "--command",
                         type=str, help="CAT command to send to radio (no GUI)")
+    parser.add_argument("-s", "--small", action='store_true',
+                        help="Smaller GUI window", default="Larger GUI window")
     arg_info = parser.parse_args()
     if not arg_info.command:
         print(f"{stamp()}: Using {arg_info.port} @ {arg_info.baudrate} bps")
@@ -430,10 +431,16 @@ if __name__ == "__main__":
         sys.exit(1)
         # os.environ.__setitem__('DISPLAY', ':0.0')
 
+    if arg_info.small:
+        size = 'small'
+    else:
+        size = 'normal'
+
     root = tk.Tk()
     q = queue.Queue()
-    myscreen = kenwoodTM.KenwoodTMScreen(root, __version__, q)
-
+    myscreen = kenwoodTM.KenwoodTMScreen(root=root,
+                                         version=__version__,
+                                         queue=q, size=size)
     # Commands to verify we can communicate with the radio. If all work,
     # then there's a good chance the port isn't in use by another app
     test_queries = ('MS', 'AE', 'ID')

@@ -18,7 +18,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2020, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL"
-__version__ = "1.2.1"
+__version__ = "1.2.2"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -401,7 +401,7 @@ if __name__ == "__main__":
     parser.add_argument("-c", "--command",
                         type=str, help="CAT command to send to radio (no GUI)")
     parser.add_argument("-s", "--small", action='store_true',
-                        help="Smaller GUI window", default="Larger GUI window")
+                        help="Smaller GUI window")
     arg_info = parser.parse_args()
     if not arg_info.command:
         print(f"{stamp()}: Using {arg_info.port} @ {arg_info.baudrate} bps")

@@ -20,7 +20,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2020, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL"
-__version__ = "1.0.3"
+__version__ = "1.0.4"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -571,8 +571,12 @@ class KenwoodTMScreen(object):
         h = self._scale[size]['h']
         ws = master.winfo_screenwidth()
         hs = master.winfo_screenheight()
-        x = (ws // 2) - (w // 2)
-        y = (hs // 2) - (h // 2)
+        if kwargs['initial_location'] is None:
+            x = (ws // 2) - (w // 2)
+            y = (hs // 2) - (h // 2)
+        else:
+            x = kwargs['initial_location'][0]
+            y = kwargs['initial_location'][1]
         master.geometry(f"{w}x{h}+{x}+{y}")
         master.title(f"Kenwood TM-D710G/TM-V71A Controller {self.version}")
         master['padx'] = 5

@@ -18,7 +18,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2020, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL"
-__version__ = "1.2.2"
+__version__ = "1.2.3"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -362,10 +362,10 @@ def get_ports():
                     target_path = os.path.join(os.path.dirname(path),
                                                target_path)
                 if os.path.exists(target_path) and \
-                        re.match('^tty(AMA[0-9]|S[0-9]|USB[0-9])',
+                        re.match('^tty(AMA[0-9]|S[0-9]|USB[0-9]|.usbserial)',
                                  os.path.basename(os.readlink(path))):
                     ports.append(path)
-            elif re.match('^tty(AMA[0-9]|S[0-9]|USB[0-9])', filename):
+            elif re.match('^tty(AMA[0-9]|S[0-9]|USB[0-9]|.usbserial)', filename):
                 # Not a symlink. Look for the usual serial port names and add them to list
                 ports.append(path)
             else:  # Not interested in anything else
@@ -402,6 +402,9 @@ if __name__ == "__main__":
                         type=str, help="CAT command to send to radio (no GUI)")
     parser.add_argument("-s", "--small", action='store_true',
                         help="Smaller GUI window")
+    parser.add_argument("-l", "--location", type=str, metavar="x:y",
+                        help="x:y: Initial x and y position (in pixels) "
+                             "of upper left corner of GUI.")
     arg_info = parser.parse_args()
     if not arg_info.command:
         print(f"{stamp()}: Using {arg_info.port} @ {arg_info.baudrate} bps")
@@ -437,10 +440,34 @@ if __name__ == "__main__":
         size = 'normal'
 
     root = tk.Tk()
+
+    loc = None
+    if arg_info.location:
+        loc = arg_info.location.split(':')
+        try:
+            x_loc = int(loc[0])
+            y_loc = int(loc[1])
+        except (ValueError, IndexError):
+            print(f"{stamp()}: '{arg_info.location}' is an invalid screen position. "
+                  f"Using defaults instead.",
+                  file=sys.stderr)
+            loc = None
+        else:
+            y_max = root.winfo_screenheight()
+            x_max = root.winfo_screenwidth()
+            if 0 <= x_loc < x_max - 100 and 0 <= y_loc < y_max - 100:
+                loc = (x_loc, y_loc)
+            else:
+                print(f"{stamp()}: '{arg_info.location}' is an invalid screen position. "
+                      f"Using defaults instead.",
+                      file=sys.stderr)
+                loc = None
+
     q = queue.Queue()
     myscreen = kenwoodTM.KenwoodTMScreen(root=root,
                                          version=__version__,
-                                         queue=q, size=size)
+                                         queue=q, size=size,
+                                         initial_location=loc)
     # Commands to verify we can communicate with the radio. If all work,
     # then there's a good chance the port isn't in use by another app
     test_queries = ('MS', 'AE', 'ID')

@@ -18,7 +18,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2020, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL"
-__version__ = "1.2.3"
+__version__ = "1.2.4"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -385,7 +385,7 @@ if __name__ == "__main__":
         device = port_list[0]
     signal.signal(signal.SIGINT, sigint_handler)
     parser = argparse.ArgumentParser(prog='710.py',
-                                     description=f"CAT control for Kenwood TM-D710G/TM=V71A",
+                                     description=f"CAT control for Kenwood TM-D710G/TM-V71A",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-v', '--version', action='version',
                         version=f"Version: {__version__}")
@@ -398,13 +398,13 @@ if __name__ == "__main__":
                                  38400, 57600],
                         type=int, default=baud,
                         help="Serial port speed (must match radio)")
-    parser.add_argument("-c", "--command",
-                        type=str, help="CAT command to send to radio (no GUI)")
     parser.add_argument("-s", "--small", action='store_true',
                         help="Smaller GUI window")
     parser.add_argument("-l", "--location", type=str, metavar="x:y",
                         help="x:y: Initial x and y position (in pixels) "
                              "of upper left corner of GUI.")
+    parser.add_argument("-c", "--command",
+                        type=str, help="CAT command to send to radio (no GUI)")
     arg_info = parser.parse_args()
     if not arg_info.command:
         print(f"{stamp()}: Using {arg_info.port} @ {arg_info.baudrate} bps")

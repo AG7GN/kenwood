@@ -15,10 +15,10 @@ import datetime
 import kenwoodTM
 
 __author__ = "Steve Magnuson AG7GN"
-__copyright__ = "Copyright 2020, Steve Magnuson"
+__copyright__ = "Copyright 2021, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL"
-__version__ = "1.2.4"
+__version__ = "1.2.5"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"

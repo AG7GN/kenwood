@@ -2,22 +2,22 @@
 Files related to Kenwood radios
 ## 710.sh  
 
-VERSION 20210121
+VERSION 20210422
 
 Two scripts that provide CAT control for Kenwood TM-D710G or TM-V71A radios on a Raspberry Pi. It requires a serial/USB cable between the radio and the Pi.  An RT Systems programming cable will work, as will a Kenwood PG-5G or equivalent. 
 
 - `710.sh` is a shell script that you use in the Terminal.
 - `710.py` is a Python application that allows you to control the radio through a GUI that emulates the TM-D710G's screen, although it works with the TM-V71A as well.
- 
 
-The `710.sh` script uses `rigctl`, which is part of `Hamlib`, to talk to the radio. `710.py` uses the Python serial library to communicate with the radio. `rigctl` is not needed.
+The `710.sh` script calls `710.py` to talk to the radio. It does not start the `710.py` GUI in this case. `710.py` uses the Python serial library to communicate with the radio. 
 
 ## Install
 Pick either Easy or Manual Installation.
+
 ### Easy Installation (for Nexus users)
 - Make sure your Pi is connected to the Internet.
 - Click __Raspberry > Hamradio > Update Pi and Ham Apps__.
-- Check __710.sh__, click __OK__.
+- Check __710__, click __OK__.
 
 ### Manual Installation
 - Make sure your Pi is connected to the Internet.
@@ -47,8 +47,10 @@ Pick either Easy or Manual Installation.
 	The GUI features tool tips, which describe the different elements on the screen as you move your mouse over them.
 	
 	If you want the GUI to use a smaller desktop footprint, add the `--small` argument to `710.py`.
-	
+
 ## Make a __Hamradio__ menu selection for `710.py`
+
+In the example below, the serial port connected to the Kenwood is `/dev/ttyUSB1`. Yours may be different. Note also that this example desktop file will launch `710.py` in "small" mode so it doesn't occupy so much screen real estate.
 
 - Using your favorite text editor, create a file called `$HOME/.local/share/applications/kenwoodtm.desktop`
 
@@ -57,7 +59,7 @@ Pick either Easy or Manual Installation.
 		[Desktop Entry]
 		Name=TM-D710G Controller
 		Comment=Kenwood TM-D710G/TM-V71A Controller
-		Exec=sh -c "710.py -p /dev/kenwood --small >/dev/null 2>&1"
+		Exec=sh -c "710.py -p /dev/ttyUSB1 --small >/dev/null 2>&1"
 		Icon=hamradio.png
 		StartupNotify=true
 		Terminal=false

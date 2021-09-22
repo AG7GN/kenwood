@@ -11,6 +11,18 @@ Two scripts that provide CAT control for Kenwood TM-D710G or TM-V71A radios on a
 
 The `710.sh` script calls `710.py` to talk to the radio. It does not start the `710.py` GUI in this case. `710.py` uses the Python serial library to communicate with the radio. 
 
+## CAVEATS
+
+I know of 2 CAT commands that do not work as they should.
+
+- REV
+
+Although an R indicator appears in the actual radio (TM-D710G) display when this is activated from `710.py`, the TX/RX frequencies are not actually swapped.
+
+- Digital Side
+
+Changing the side of the radio designated for digital does not work. The radio returns the expected ACK when a request to change it is made from `710.py`, but it does not actually move digital from side A to B or vice-versa. You must set the digital side using the radio's menu.
+
 ## Install
 Pick either Easy or Manual Installation.
 

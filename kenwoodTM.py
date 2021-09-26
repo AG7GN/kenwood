@@ -20,7 +20,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2021, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL"
-__version__ = "1.0.6"
+__version__ = "1.0.7"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -299,19 +299,43 @@ class KenwoodTMCat(object):
             self.display[self._side_dict[s]]['shift'] = \
                 self._shift_dict[result[4]]
             # Save reverse status to display dictionary
-            # self.display[self._side_dict[s]]['reverse'] = \
-            #     '{}'.format(self._reverse_dict[result[5]])
+            self.display[self._side_dict[s]]['reverse'] = \
+                '{}'.format(self._reverse_dict[result[5]])
             # Save modulation to display dictionary
             self.display[self._side_dict[s]]['modulation'] = \
                 '{}'.format(self.modulation_dict['map'][result[13]])
             # Save the mode to the display dictionary
             self.display[self._side_dict[s]]['mode'] = _mode_str
             # Save the frequency to the display dictionary
-            self.display[self._side_dict[s]]['frequency'] = \
-                "{:.3f}".format(int(result[2]) / 1000000)
+            # rx_freq = int(result[2]) / 1000000
+            # _freq = rx_freq
+            # if result[5] == '1':
+            #     # Reverse enabled
+            #     if _mode_str == 'MR':
+            #         if result[4] == '1':
+            #             # Shift +: add offset
+            #             _freq += int(result[12]) / 1000000
+            #         if result[4] == '2':
+            #             # Shift -: Subtract offset
+            #             _freq -= int(result[12]) / 1000000
+            #     if _mode_str == 'VFO':
+            #         if result[4] == '1':
+            #             # Shift +: add offset
+            #             _freq += int(result[14]) / 1000000
+            #         if result[4] == '2':
+            #             # Shift -: Subtract offset
+            #             _freq -= int(result[14]) / 1000000
+            # if _freq != rx_freq:
+            #     self.display[self._side_dict[s]]['frequency'] = \
+            #         "{:.3f}".format(_freq)
+            # else:
+            #     self.display[self._side_dict[s]]['frequency'] = \
+            #         "{:.3f}".format(_freq)
             # Save the RX step to display dictionary
             self.display[self._side_dict[s]]['step'] = \
                 self._step_dict[result[3]]
+            self.display[self._side_dict[s]]['frequency'] = \
+                "{:.3f}".format(int(result[2]) / 1000000)
 
         sides = ('0', '1')
         result = self.query(f"BC")
@@ -348,6 +372,7 @@ class KenwoodTMCat(object):
                     print(f"{stamp()}: ERROR: No response from radio",
                           file=sys.stderr)
                     return {}
+                # print(f"{stamp()}: {result}", file=sys.stderr)
                 common_elements('MR')
                 # Retrieve the channel name
                 result = self.query(f"MN {ch_num_raw}")
@@ -355,8 +380,12 @@ class KenwoodTMCat(object):
                     print(f"{stamp()}: ERROR: No response from radio",
                           file=sys.stderr)
                     return {}
-                self.display[self._side_dict[s]]['ch_name'] = \
-                    result[2]
+                if result[0] != 'N':
+                    self.display[self._side_dict[s]]['ch_name'] = \
+                        result[2]
+                # else:
+                #     print(f"{stamp()}: ERROR: Nothing in memory",
+                #           file=sys.stderr)
             elif self._mode_dict[result[2]] == 'VFO':
                 # This side is in VFO mode. Retrieve FO data
                 result = self.query(f"FO {s}")
@@ -391,19 +420,19 @@ class KenwoodTMCat(object):
                 self.display[self._side_dict[s]]['ch_name'] = '      '
             else:
                 pass
-            # Power
+        # Power
             result = self.query(f"PC {s}")
             if not result:
                 print(f"{stamp()}: ERROR: No response from radio",
                       file=sys.stderr)
                 return {}
             self.display[self._side_dict[s]]['power'] = self._power_dict[result[2]]
-            result = self.query(f"AS {s}")
-            if not result:
-                print(f"{stamp()}: ERROR: No response from radio",
-                      file=sys.stderr)
-                return {}
-            self.display[self._side_dict[s]]['reverse'] = self._reverse_dict[result[2]]
+            # result = self.query(f"AS {s}")
+            # if not result:
+            #     print(f"{stamp()}: ERROR: No response from radio",
+            #           file=sys.stderr)
+            #     return {}
+            # self.display[self._side_dict[s]]['reverse'] = self._reverse_dict[result[2]]
         # Data side
         result = self.query(f"MU")
         if not result:
@@ -452,6 +481,11 @@ class KenwoodTMScreen(object):
     frequency_limits = {'A': {'min': 118.0, 'max': 524.0},
                         'B': {'min': 136.0, 'max': 1300.0}}
     memory_limits = {'min': 0, 'max': 999}
+    frequency_band_limits = {'118': {'min': 118000000, 'max': 136000000},
+                             '144': {'min': 136000000, 'max': 200000000},
+                             '220': {'min': 200000000, 'max': 300000000},
+                             '440': {'min': 400000000, 'max': 524000000},
+                             '1200': {'min': 800000000, 'max': 1300000000}}
 
     def __init__(self, **kwargs):
         master = kwargs['root']
@@ -485,41 +519,41 @@ class KenwoodTMScreen(object):
                                            'w', self._default_font, "Control"),
                                   'tone': (_scr['row'], _scr['col'] + 2, 1, 1,
                                            'e', self._default_font,
-                                           "Tone Type: Tone, DCS, or CTCSS\nClick to change"),
+                                           "Tone Type: Tone, DCS, or CTCSS.\nClick to change"),
                                   'tone_frequency': (_scr['row'], _scr['col'] + 3, 1, 1,
                                                      'w', self._default_font,
-                                                     "Tone, DCS, or CTCSS frequency\nClick to change"),
+                                                     "Tone, DCS, or CTCSS frequency.\nClick to change"),
                                   'shift': (_scr['row'], _scr['col'] + 4, 1, 1,
                                             'w', self._default_font,
-                                            "TX shift direction\n'S' is simplex"),
+                                            "TX shift direction.\n'S' is simplex"),
                                   'reverse': (_scr['row'], _scr['col'] + 5, 1,
                                               1, 'e', self._default_font,
                                               "'R': TX and RX frequencies reversed"),
                                   'modulation': (_scr['row'], _scr['col'] + 6,
                                                  1, 1, 'e', self._default_font,
-                                                 "Modulation: FM, NFM or AM\nClick to change"),
+                                                 "Modulation: FM, NFM or AM.\nClick to change"),
                                   'power': (_scr['row'] + 1, _scr['col'], 1, 1,
                                             'w', self._default_font,
-                                            "Power: High, Medium, Low"),
+                                            "Power: High, Medium, Low.\nClick to change"),
                                   'data': (_scr['row'] + 1, _scr['col'] + 6, 1,
                                            1, 'e', self._default_font,
-                                           "'D' means data on this side.\nClick to move to other side"),
+                                           "'D' means data on this side.\nClick to change"),
                                   'ch_name': (_scr['row'] + 1, _scr['col'] + 1,
                                               2, 1, 'e', self._default_font,
                                               "Memory Channel Name"),
                                   'ch_number': (_scr['row'] + 1,
                                                 _scr['col'] + 4, 1, 1,
                                                 'w', self._default_font,
-                                                "Memory Channel Number\nClick to change"),
+                                                "Memory Channel Number.\nClick to go to different memory"),
                                   'mode': (_scr['row'] + 4, _scr['col'],
                                            1, 1, 'sw', self._default_font,
-                                           "Mode: VFO, MR, CALL or WX\nClick to change"),
+                                           "Mode: VFO, MR, CALL or WX.\nClick to change"),
                                   'frequency': (_scr['row'] + 2, _scr['col'] + 1,
                                                 5, 3, 'nsw', _frequency_font,
-                                                "Frequency in MHz\nClick to change"),
+                                                "Frequency in MHz.\nClick to change"),
                                   'step': (_scr['row'] + 4, _scr['col'] + 6,
                                            1, 1, 'se', self._default_font,
-                                           "Step size in KHz\nClick to change"),
+                                           "Step size in KHz.\nClick to change"),
                                   },
                             'B': {'ptt': (_scr['row'], _scr['col'] + 8, 1,
                                           1, 'w', self._default_font, "Push-to-talk"),
@@ -527,42 +561,42 @@ class KenwoodTMScreen(object):
                                            1, 'w', self._default_font, "Control"),
                                   'tone': (_scr['row'], _scr['col'] + 10, 1,
                                            1, 'e', self._default_font,
-                                           "Tone Type: Tone, DCS, or CTCSS\nClick to change"),
+                                           "Tone Type: Tone, DCS, or CTCSS.\nClick to change"),
                                   'tone_frequency': (_scr['row'], _scr['col'] + 11, 1,
                                                      1, 'w', self._default_font,
-                                                     "Tone, DCS, or CTCSS frequency\nClick to change"),
+                                                     "Tone, DCS, or CTCSS frequency.\nClick to change"),
                                   'shift': (_scr['row'], _scr['col'] + 12, 1,
                                             1, 'w', self._default_font,
-                                            "TX shift direction\n'S' is simplex"),
+                                            "TX shift direction.\n'S' is simplex"),
                                   'reverse': (_scr['row'], _scr['col'] + 13, 1,
                                               1, 'e', self._default_font,
                                               "'R': TX and RX frequencies reversed"),
                                   'modulation': (_scr['row'], _scr['col'] + 14,
                                                  1, 1, 'e', self._default_font,
-                                                 "Modulation: FM, NFM or AM\nClick to change"),
+                                                 "Modulation: FM, NFM or AM.\nClick to change"),
                                   'power': (_scr['row'] + 1, _scr['col'] + 8, 1,
                                             1, 'w', self._default_font,
-                                            "Power: High, Medium, Low\nClick to change"),
+                                            "Power: High, Medium, Low.\nClick to change"),
                                   'data': (_scr['row'] + 1, _scr['col'] + 14, 1,
                                            1, 'e', self._default_font,
-                                           "'D' means data on this side.\nClick to move to other side"),
+                                           "'D' means data on this side.\nClick to change"),
                                   'ch_name': (_scr['row'] + 1, _scr['col'] + 9,
                                               2, 1, 'e', self._default_font,
                                               "Memory Channel Name"),
                                   'ch_number': (_scr['row'] + 1,
                                                 _scr['col'] + 12, 1, 1,
                                                 'w', self._default_font,
-                                                "Memory Channel Number\nClick to change"),
+                                                "Memory Channel Number.\nClick to go to different memory"),
                                   'mode': (_scr['row'] + 4, _scr['col'] + 8, 1,
                                            1, 'sw', self._default_font,
-                                           "Mode: VFO, MR, CALL, or WX\nClick to change"),
+                                           "Mode: VFO, MR, CALL, or WX.\nClick to change"),
                                   'frequency': (_scr['row'] + 2,
                                                 _scr['col'] + 9, 5, 3,
                                                 'nsw', _frequency_font,
-                                                "Frequency in MHz\nClick to change"),
+                                                "Frequency in MHz.\nClick to change"),
                                   'step': (_scr['row'] + 4, _scr['col'] + 14,
                                            1, 1, 'se', self._default_font,
-                                           "Step size in KHz\nClick to change"),
+                                           "Step size in KHz.\nClick to change"),
                                   }
                             }
 
@@ -771,6 +805,24 @@ class KenwoodTMScreen(object):
                                     self._q.put(['quit', ]))
             quit_button.grid(row=13, column=0, columnspan=14, sticky='nsew')
 
+    def same_frequency_band(self, freq1: int, freq2: int) -> bool:
+        """
+        Check if 2 frequencies in Hz are in the same amateur radio band.
+
+        :param freq1:  1st Frequency in Hz
+        :param freq2:  2nd Frequency in Hz
+        :return: True if both freq1 and freq2 are in the same band,
+        False otherwise
+        """
+        same_band = False
+        for band, freq_range in self.frequency_band_limits.items():
+            if freq1 in range(freq_range['min'], freq_range['max']) \
+                    and freq2 in range(freq_range['min'],
+                                       freq_range['max']):
+                same_band = True
+                break
+        return same_band
+
     def widget_clicked(self, **kwargs):
 
         _label = None
@@ -926,8 +978,10 @@ class MessageConsole(object):
                                                   font=_msg_console_font)
         self.msg_text.grid(row=0, column=0, sticky='nsew')
         self.msg_text.tag_configure('INFO', foreground='blue')
-        self.msg_text.tag_configure('WARNING', foreground='orange')
-        self.msg_text.tag_configure('ERROR', foreground='red')
+        self.msg_text.tag_configure('WARNING', foreground='black',
+                                    background='orange')
+        self.msg_text.tag_configure('ERROR', foreground='yellow',
+                                    background='red')
         self.mq = queue.Queue()
         self.frame.after(100, self.mq_reader)
 

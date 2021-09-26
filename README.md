@@ -1,28 +1,49 @@
 # Kenwood
 Files related to Kenwood radios
-## 710.sh  
 
-VERSION 20210422
+VERSION 20210926
 
-Two scripts that provide CAT control for Kenwood TM-D710G or TM-V71A radios on a Raspberry Pi. It requires a serial/USB cable between the radio and the Pi.  An RT Systems programming cable will work, as will a Kenwood PG-5G or equivalent. 
+## 710.py and 710.sh
+
+Two scripts that provide CAT control for Kenwood TM-D710G or TM-V71A radios on a Raspberry Pi. It requires a serial/USB cable between the radio and the Pi.  An RT Systems programming cable will work, as will a Kenwood PG-5G cable or equivalent. 
 
 - `710.sh` is a shell script that you use in the Terminal.
 - `710.py` is a Python application that allows you to control the radio through a GUI that emulates the TM-D710G's screen, although it works with the TM-V71A as well.
 
 The `710.sh` script calls `710.py` to talk to the radio. It does not start the `710.py` GUI in this case. `710.py` uses the Python serial library to communicate with the radio. 
 
+## Most recent significant changes
+
+### Latest Versions
+
+- `710.py` version 1.2.6
+- `710.sh` version 5.2.1
+
+1. In the GUI, changing the frequency when in MR mode will result in that memory location being modified. See CAVEATS below. Changing the frequency in the shell script is unchanged: The script will change to VFO mode and *attempt* to QSY to the desired frequency if allowed by the current frequency band setting. Again, see CAVEATS below for an explanation.
+
+1. Fixed a bug where moving the data mode to the other side of the radio would not update the radio display. 
+
+1. __REV__ now works as expected. See CAVEATS below. Thanks to Chris (KC9AD) and Mick (K7MNF) for their testing and investigation of this problem on the TM-V71A.
+
+
 ## CAVEATS
 
-I know of 2 CAT commands that do not work as they should.
+- Kenwood does not provide a CAT command to change the frequency band on a given side of the radio. You can only change the frequency band on the radio itself. This omission causes the following behaviors:
 
-- REV
+	1. When in VFO mode, you cannot select a frequency outside the frequency band set for that side.
 
-Although an R indicator appears in the actual radio (TM-D710G) display when this is activated from `710.py`, the TX/RX frequencies are not actually swapped.
+	2. If you modify the frequency, tone type, tone frequency, step, reverse or modulation using the GUI (`710.py`), the change will take place __*in the current mode for that side (VFO, CALL or MR)*__. If the change to one of these parameters is requested when in MR mode, __*the data for that memory location will be modified*__! A warning message will appear in the message queue window telling the user that the memory location has been modified. 
+	
+	3. If you use the shell script (`710.sh`) to change the frequency, the script will first change the mode to VFO (if it's not already in that mode) and attempt to set the desired frequency. If the desired frequency is not in the currently set frequency band for that side, the frequency will not be changed. 
 
-- Digital Side
-
-Changing the side of the radio designated for digital does not work. The radio returns the expected ACK when a request to change it is made from `710.py`, but it does not actually move digital from side A to B or vice-versa. You must set the digital side using the radio's menu.
-
+	The workaround for the inability to use CAT to change the frequency band is to set your commonly used frequencies in memory locations and use the scripts to put the radio in MR mode and set a certain memory channel. One easy way to program the radio's memories is to use `chirp`, which is available via the the Nexus Updater. `chirp` uses the same serial/USB cable as the `710` scripts. 
+	
+	Here are some tips for using `chirp`:
+	
+	1. Close the `710` script while running `chirp`. Only one program can access the serial port at a time.
+	1. For the TM-D710G: Select __TM-D710G__ and not TM-D710G_CloneMode. Select __TM-V71__ for that radio.
+	1. On the TM-D710G, all changes you make in `chirp` are immediately sent to the radio. There is no "update" or "send to radio" action to take.
+	
 ## Install
 Pick either Easy or Manual Installation.
 
@@ -61,6 +82,8 @@ Pick either Easy or Manual Installation.
 	If you want the GUI to use a smaller desktop footprint, add the `--small` argument to `710.py`.
 
 ## Make a __Hamradio__ menu selection for `710.py`
+
+Installing these scripts does not automatically create a Hamradio menu item because it is not possible to know in advance what serial port will be used to communicate with the radio. You can make your own Hamradio menu item as described here.
 
 In the example below, the serial port connected to the Kenwood is `/dev/ttyUSB1`. Yours may be different. Note also that this example desktop file will launch `710.py` in "small" mode so it doesn't occupy so much screen real estate.
 

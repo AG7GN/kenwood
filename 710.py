@@ -18,7 +18,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2021, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL"
-__version__ = "1.2.5"
+__version__ = "1.2.6"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -43,7 +43,7 @@ def stop_q_reader():
 
 
 def cleanup():
-    print(f"{stamp()}: Start cleanup()")
+    print(f"{stamp()}: Start cleanup")
     global running
     if running:
         running = False
@@ -54,7 +54,7 @@ def cleanup():
     ser.close()
     root.quit()
     root.update()
-    print(f"{stamp()}: cleanup() completed")
+    print(f"{stamp()}: Cleanup completed")
 
 
 def handle_query(cmd: str):
@@ -75,25 +75,33 @@ def stamp():
 
 
 def q_reader(sq: object):
-    def get_arg_list():
+    def get_arg_list(**kwargs):
+        if 'cmd' in kwargs:
+            cmd = kwargs['cmd']
+        else:
+            cmd = None
         if len(job) > 1 and job[1] in ('A', 'B'):
             _arg = mycat.side_dict['inv'][job[1]]
-            _answer = handle_query(f"VM {_arg}")
-            if _answer is None:
-                return None
-            _, _, _m = list(_answer)
-            if _m == '0':  # vfo
-                cmd = 'FO'
-            elif _m == '1':  # mr
-                cmd = 'ME'
-                _answer = handle_query(f"MR {_arg}")
+            if cmd is None:
+                # No particular command requested. Determine command
+                # from current mode (VFO, MR, CC, or WX)
+                _answer = handle_query(f"VM {_arg}")
                 if _answer is None:
                     return None
-                _arg = _answer[2]  # Get the channel number
-            elif _m == '2':  # call
-                cmd = 'CC'
-            else:  # wx
-                return None
+                _, _, _m = list(_answer)
+                if _m == '0':  # vfo
+                    cmd = 'FO'
+                elif _m == '1':  # mr
+                    cmd = 'ME'
+                    _answer = handle_query(f"MR {_arg}")
+                    if _answer is None:
+                        return None
+                    _arg = _answer[2]  # Get the channel number
+                elif _m == '2':  # call
+                    cmd = 'CC'
+                else:  # wx
+                    cmd = 'VM'
+                    _arg = f"{_arg},3"
             _answer = handle_query(f"{cmd} {_arg}")
             if _answer is None:
                 return None
@@ -145,51 +153,8 @@ def q_reader(sq: object):
             if job[0] == 'quit':
                 break
             myscreen.msg.mq.put(['INFO', f"{stamp()}: Working on {job}"])
-            if job[0] in ('mode',):  # 'VM' command
+            if job[0] in ('mode',):  # 'VM' command - mode change requested
                 arg = f"VM {mycat.side_dict['inv'][job[1]]},{job[2]}"
-                if handle_query(arg) is None:
-                    break
-            elif job[0] in ('tone', 'tone_frequency'):
-                # Get the channel data for current mode (VFO, MR, CALL)
-                arg_list = get_arg_list()
-                if arg_list is None or arg_list[0] == 'N':
-                    break
-                same_type = False
-                for key, value in mycat.tone_type_dict['map'].items():
-                    if arg_list[int(key)] == '1':
-                        # Found the current tone type
-                        current_type = key
-                        if job[0] == 'tone' and job[2] == key:
-                            # Requested tone type is the same as current
-                            same_type = True
-                        break
-                else:  # Current type is 'No Tone'
-                    current_type = '0'  # No Tone
-                    if current_type == job[2]:
-                        same_type = True
-                if job[0] == 'tone' and not same_type:
-                    # Need to change the tone type.
-                    # Set all tones to off for now...
-                    _, t, c, d = list(mycat.tone_type_dict['map'].keys())
-                    arg_list[int(t)] = '0'
-                    arg_list[int(c)] = '0'
-                    arg_list[int(d)] = '0'
-                    if job[2] != '0':
-                        # Change to requested tone type
-                        arg_list[int(job[2])] = '1'
-                        # Also set the tone frequency for the new tone
-                        # type to the first dictionary entry for that
-                        # type because don't know what the user will
-                        # want it to be. Tone frequency is always 3
-                        # elements up in the list from the tone type
-                        # arg_list[int(job[2]) + 3] = \
-                        #     list(mycat.tone_frequency_dict[job[2]]
-                        #          ['map'].keys())[0]
-                if job[0] == 'tone_frequency' and current_type != '0':
-                    arg_list[int(current_type) + 3] = \
-                        mycat.tone_frequency_dict[current_type]['inv'][job[2]]
-                # Prepare the new command to change tone or tone frequency
-                arg = f"{arg_list[0]} {','.join(arg_list[1:])}"
                 if handle_query(arg) is None:
                     break
             elif job[0] in ('ptt', 'ctrl'):  # 'BC' command
@@ -208,14 +173,6 @@ def q_reader(sq: object):
                 arg = f"PC {mycat.side_dict['inv'][job[1]]},{job[2]}"
                 if handle_query(arg) is None:
                     break
-            elif job[0] in ('rev',):
-                answer = handle_query(f"AS {mycat.side_dict['inv'][job[1]]}")
-                if answer is None:
-                    break
-                arg = f"AS {mycat.side_dict['inv'][job[1]]},"
-                arg += '{}'.format('1' if answer[2] == '0' else '0')
-                if handle_query(arg) is None:
-                    break
             elif job[0] in ('lock',):
                 answer = handle_query("LK")
                 if answer is None:
@@ -223,30 +180,88 @@ def q_reader(sq: object):
                 arg = "LK {}".format('1' if answer[1] == '0' else '0')
                 if handle_query(arg) is None:
                     break
-            elif job[0] in ('frequency', 'modulation', 'step'):
-                if job[0] == 'frequency':
-                    # Change to VFO mode if frequency change was requested
-                    arg = f"VM {mycat.side_dict['inv'][job[1]]},0"
-                    if handle_query(arg) is None:
-                        break
-                    _mode = 'vfo'
-                arg_list = get_arg_list()  # Get the channel data for current mode
+            elif job[0] in ('frequency', 'modulation', 'step',
+                            'tone', 'tone_frequency', 'rev'):
+                arg_list = get_arg_list()
                 if arg_list is None or arg_list[0] == 'N':
                     break
-                # print(f"PRE:  {arg_list}")
+                if arg_list[0] not in ['CC', 'FO', 'ME']:
+                    # WX or unknown mode. Skip this job.
+                    job[0] = None
+                if job[0] in ('tone', 'tone_frequency'):
+                    same_type = False
+                    for key, value in mycat.tone_type_dict['map'].items():
+                        if arg_list[int(key)] == '1':
+                            # Found the current tone type
+                            current_type = key
+                            if job[0] == 'tone' and job[2] == key:
+                                # Requested tone type is the same as current
+                                same_type = True
+                            break
+                    else:  # Current type is 'No Tone'
+                        current_type = '0'  # No Tone
+                        if current_type == job[2]:
+                            same_type = True
+                    if job[0] == 'tone' and not same_type:
+                        # Need to change the tone type.
+                        # Set all tones to off for now...
+                        # t is tone freq., c is CTCSS freq., d is DCS freq.
+                        _, t, c, d = list(mycat.tone_type_dict['map'].keys())
+                        arg_list[int(t)] = '0'
+                        arg_list[int(c)] = '0'
+                        arg_list[int(d)] = '0'
+                        if job[2] != '0':
+                            # Change to requested tone type
+                            arg_list[int(job[2])] = '1'
+                    # Also set the tone frequency for the new tone
+                    # type to the first dictionary entry for that
+                    # type because don't know what the user will
+                    # want it to be. Tone frequency is always 3
+                    # elements up in the list from the tone type
+                    if job[0] == 'tone_frequency' and current_type != '0':
+                        arg_list[int(current_type) + 3] = \
+                            mycat.tone_frequency_dict[current_type]['inv'][job[2]]
                 if job[0] == 'frequency':
-                    # Modify the frequency value in the VFO channel info
                     arg_list[2] = f"{int(job[2] * 1000000):010d}"
                 if job[0] == 'modulation':
                     arg_list[13] = job[2]
                 if job[0] == 'step':
                     arg_list[3] = job[2]
+                # if job[0] == 'rev' and arg_list[4] != '0':
+                if job[0] == 'rev':
+                    _freq = int(arg_list[2])
+                    if arg_list[5] == '0':
+                        # Change *TO* REV state
+                        arg_list[5] = '1'
+                        # Shift frequency
+                        if arg_list[4] == '1':
+                            # Shift +: add offset
+                            _freq += int(arg_list[12])
+                        if arg_list[4] == '2':
+                            # Shift -: add offset
+                            _freq -= int(arg_list[12])
+                    else:
+                        # Change *FROM* REV state
+                        arg_list[5] = '0'
+                        # Unshift frequency
+                        if arg_list[4] == '1':
+                            _freq -= int(arg_list[12])
+                        if arg_list[4] == '2':
+                            _freq += int(arg_list[12])
+                    arg_list[2] = f"{_freq:010d}"
                 else:
                     pass
-                # print(f"POST: {arg_list}")
-                arg = f"{arg_list[0]} {','.join(arg_list[1:])}"
-                if handle_query(arg) is None:
-                    break
+                if arg_list[0] == 'ME':
+                    # MR mode
+                    # Kenwood provides no CAT command for changing the
+                    # frequency band on a given side. To work around
+                    # this shortcoming, we must modify the memory channel.
+                    myscreen.msg.mq.put(['WARNING',
+                                         f"{stamp()}: WARNING: Modifying "
+                                         f"memory {int(arg_list[1])}!"])
+                if job[0] is not None:
+                    if handle_query(f"{arg_list[0]} {','.join(arg_list[1:])}") is None:
+                        break
             elif job[0] in ('beep', 'vhf_aip', 'uhf_aip', 'speed',
                             'backlight', 'apo', 'data', 'timeout'):
                 # Get the current menu settings
@@ -277,10 +292,30 @@ def q_reader(sq: object):
                 arg = f"MU {','.join(mu_list[1:])}"
                 if handle_query(arg) is None:
                     break
+                # Workaround for screen refresh bug: Move CTRL to
+                # opposite side and back to refresh screen so that
+                # radio display updates correctly.
+                if job[0] == 'data':
+                    bc = handle_query('BC')
+                    if bc is None:
+                        break
+                    _error = False
+                    for _ in range(2):
+                        if bc[1] == '0':
+                            ctrl_temp = '1'
+                        else:
+                            ctrl_temp = '0'
+                        bc = handle_query(f"BC {ctrl_temp},{bc[2]}")
+                        if bc is None:
+                            _error = True
+                            break
+                    if _error:
+                        break
             elif job[0] in ('up', 'down'):
                 arg_list = get_arg_list()  # Get the channel data for current mode
                 if arg_list is None or arg_list[0] == 'N':
                     break
+                channel = 0
                 if arg_list[0] == 'FO':
                     frequency = int(arg_list[2])
                     step = int(mycat.step_dict['map'][arg_list[3]]) * 1000
@@ -468,6 +503,7 @@ if __name__ == "__main__":
                                          version=__version__,
                                          queue=q, size=size,
                                          initial_location=loc)
+
     # Commands to verify we can communicate with the radio. If all work,
     # then there's a good chance the port isn't in use by another app
     test_queries = ('MS', 'AE', 'ID')

@@ -34,6 +34,8 @@ The `710.sh` script calls `710.py` to talk to the radio. It does not start the `
 
 	2. If you modify the frequency, tone type, tone frequency, step, reverse or modulation using the GUI (`710.py`), the change will take place __*in the current mode for that side (VFO, CALL or MR)*__. If the change to one of these parameters is requested when in MR mode, __*the data for that memory location will be modified*__! A warning message will appear in the message queue window telling the user that the memory location has been modified. 
 	
+		Note that unlike the radio's display, the GUI display will not display the TX frequency while PTT is active.
+	
 	3. If you use the shell script (`710.sh`) to change the frequency, the script will first change the mode to VFO (if it's not already in that mode) and attempt to set the desired frequency. If the desired frequency is not in the currently set frequency band for that side, the frequency will not be changed. 
 
 	The workaround for the inability to use CAT to change the frequency band is to set your commonly used frequencies in memory locations and use the scripts to put the radio in MR mode and set a certain memory channel. One easy way to program the radio's memories is to use `chirp`, which is available via the the Nexus Updater. `chirp` uses the same serial/USB cable as the `710` scripts. 

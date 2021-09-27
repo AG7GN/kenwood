@@ -20,7 +20,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2021, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL"
-__version__ = "1.0.8"
+__version__ = "1.0.9"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -980,7 +980,7 @@ class MessageConsole(object):
         self.msg_text.tag_configure('INFO', foreground='blue')
         self.msg_text.tag_configure('WARNING', foreground='black',
                                     background='orange')
-        self.msg_text.tag_configure('ERROR', foreground='yellow',
+        self.msg_text.tag_configure('ERROR', foreground='white',
                                     background='red')
         self.mq = queue.Queue()
         self.frame.after(100, self.mq_reader)

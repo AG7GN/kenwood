@@ -20,7 +20,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2021, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL"
-__version__ = "1.0.7"
+__version__ = "1.0.8"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -499,12 +499,12 @@ class KenwoodTMScreen(object):
                                   'message_font_size': 12,
                                   'console_w': 75, 'console_h': 5,
                                   'x_offset': 5, 'y_offset': 35},
-                       'small': {'w': 545, 'h': 272, 'frame_w': 200,
+                       'small': {'w': 545, 'h': 285, 'frame_w': 200,
                                  'default_font_size': 10,
                                  'frequency_font_size': 20,
                                  'button_font_size': 8,
                                  'message_font_size': 8,
-                                 'console_w': 72, 'console_h': 4,
+                                 'console_w': 72, 'console_h': 5,
                                  'x_offset': 5, 'y_offset': 25},
                        }
         _scr = {'row': 0, 'col': 0}  # screen starts at row 0, column 0

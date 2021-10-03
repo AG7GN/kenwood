@@ -94,7 +94,7 @@ In the example below, the serial port connected to the Kenwood is `/dev/ttyUSB1`
 - Enter this text in the file:
 
 		[Desktop Entry]
-		Name=TM-D710G Controller
+		Name=TM-D710G/TM-V71A Controller
 		Comment=Kenwood TM-D710G/TM-V71A Controller
 		Exec=sh -c "710.py -p /dev/ttyUSB1 --small >/dev/null 2>&1"
 		Icon=hamradio.png

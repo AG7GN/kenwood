@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=TM-D710G/TM-V71A Controller
+Comment=Kenwood TM-D710G/TM-V71A Controller
+Exec=sh -c "710.py >/dev/null 2>&1"
+Icon=hamradio.png
+StartupNotify=true
+Terminal=false
+Type=Application
+Categories=HamRadio
+Keywords=Ham Radio;Rig Control

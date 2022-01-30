@@ -243,7 +243,7 @@ To view the list of files that represent the USB-serial cables, open a terminal 
 
 ### Notes
 
-You can optionally supply the serial port used to connect to your radio using the `-p PORT` argument.  For example:
+You can optionally supply the serial port used to connect to your radio using the `-p PORT` argument.  __This is used ONLY if `710.sh` cannot contact `710.py` via XML-RPC__. For example:
 
 	710.sh -p /dev/ttyUSB0 set timeout 3
 

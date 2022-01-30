@@ -12,15 +12,18 @@
 #%
 #% OPTIONS
 #%    -s STRING, --string=STRING
-#%                                String to grep for in /dev/serial/by-id 
-#%                                to determine the serial port used to connect to your 
-#%                                radio.  Default string: ${DEFAULT_PORTSTRING}
+#%             String to grep for in /dev/serial/by-id 
+#%             to determine the serial port used to connect to your 
+#%             radio.  Default string: ${DEFAULT_PORTSTRING}
 #%                                
-#%    -p PORT, --port=PORT        Serial port connection to radio (ex. /dev/ttyUSB0).
-#%                                If both -p and -s are supplied, -p will be used.
+#%    -p PORT, --port=PORT        
+#%             Serial port connection to radio (ex. /dev/ttyUSB0).
+#%             If both -p and -s are supplied, -p will be used.
 #% 
-#%    -h, --help                  Print this help
-#%    -v, --version               Print script information
+#%    -h, --help  
+#%             Print this help
+#%    -v, --version               
+#%             Print script version
 #%
 #% COMMANDS
 #%  ${SCRIPT_NAME} [OPTIONS] get apo      Prints Auto Power Off setting
@@ -74,25 +77,12 @@
 #%                                Sets Advanced Intercept Point for VHF or UHF
 #%  ${SCRIPT_NAME} [OPTIONS] help         Prints this help screen
 #%
-#%
-#% EXAMPLES
-#%    
-#%  Locate serial port file name containing ${DEFAULT_PORTSTRING} (default search string),
-#%  then set APO to 30 minutes:
-#%
-#%     ${SCRIPT_NAME} set apo 30
-#%
-#%  Override the default search string ${DEFAULT_PORTSTRING} to locate serial port
-#%  connected to radio, then get radio information:
-#%
-#%     ${SCRIPT_NAME} -s Prolific_Technology get info
-#%
-#%  Specify the serial port used to connect to your radio then set radio TX timeout 
-#%  to 3 minutes:
-#%
-#%     ${SCRIPT_NAME} -p /dev/ttyUSB0 set timeout 3
-#%
 #% NOTES
+#%
+#%  This script will check to see if 710.py (the GUI) is already running and if so,
+#%  will attempt to communicate with it using XML-RPC. Failing that, it will attempt
+#%  to start 710.py in non-GUI "one shot" mode and pass the command and serial port 
+#%  to it.
 #%
 #%  Kenwood makes no commands available to change frequencies from one frequency band to
 #%  another.  For example, if the current VFO is 145.020, you cannot change the frequency
@@ -103,9 +93,28 @@
 #%  This script uses the Kenwood rig control commands documented by LA3QMA at
 #%  https://github.com/LA3QMA/TM-V71_TM-D710-Kenwood
 #%  
+#% EXAMPLES
+#%  
+#%  Check to see if 710.py is running, and if so, pass the command to it via XML-RPC.
+#%  If not, locate serial port file name containing ${DEFAULT_PORTSTRING} 
+#%  (default search string), then set APO to 30 minutes:
+#%
+#%     ${SCRIPT_NAME} set apo 30
+#%
+#%  Override the default search string ${DEFAULT_PORTSTRING} to locate serial port
+#%  connected to radio, then get radio information (will use XML-RPC, if 710.py is
+#%  running, even if you supply the search string):
+#%
+#%     ${SCRIPT_NAME} -s Prolific_Technology get info
+#%
+#%  Specify the serial port used to connect to your radio then set radio TX timeout 
+#%  to 3 minutes:
+#%
+#%     ${SCRIPT_NAME} -p /dev/ttyUSB0 set timeout 3
+#%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 5.3.0
+#-    version         ${SCRIPT_NAME} 5.3.1
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0

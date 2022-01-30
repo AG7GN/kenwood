@@ -217,10 +217,16 @@ __NOTE:__ If you close `710.py` while `rigctld` is running, you'll have to resta
 ## Operating `710.sh`
 - Open a terminal and run:
   
-		710.sh  
+		710.sh -h
 	and follow the instructions.  
 
-By default, the script will look for USB-serial cables (represented as files) in `/dev/serial/by-id`.  If any of the devices listed have filenames that contain any of these strings, then the script will automatically select and use that cable to communicate with the radio:
+`710.sh` will attempt to communicate with the radio in one of 2 ways:
+
+1.	__If `710.py` IS ALREADY running:__ `710.sh` will use XML-RPC to send the command to `710.py`, which will in turn send the command to the radio. This is the slower of the 2 ways to communicate with the radio, but has the advantage that `710.py` can be running when you send your commands.
+
+2. __If `710.py` IS NOT running:__ `710.sh` will attempt to start `710.py` in non-GUI "one shot" mode. No GUI will open, but `710.py` will send the command passed to it by `710.sh`, return the results to `710.sh`, and then exit. This is the way that `710.sh` operated in previous versions and will return data faster than the first method.
+
+If you use the second method, the script will look for USB-serial cables (represented as files) in `/dev/serial/by-id` unless you specify the serial port with `-p`.  If any of the devices listed have filenames that contain any of these strings, then the script will automatically select and use that cable to communicate with the radio:
 
 		USB-Serial
 

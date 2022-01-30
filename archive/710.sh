@@ -105,7 +105,7 @@
 #%  
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 5.3.0
+#-    version         ${SCRIPT_NAME} 5.2.1
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -118,7 +118,7 @@
 #                                 ability to print multiple memory locations.
 #     20201215 : Steve Magnuson : Removed dependency on rigctl. Now uses 710.py.
 #		20210615 : Steve Magnuson : Fixed DCS values (thanks, AI3I)
-#     20220129 : Steve Magnuson : Added XML-RPC compatibility
+# 
 #================================================================
 #  DEBUG OPTION
 #    set -n  # Uncomment to check your syntax, without execution.
@@ -172,32 +172,9 @@ function Die () {
 
 #----------------------------
 
-function CheckForXMLRPC() {
-   for PID in $(pgrep -f $(basename $MAIN_SCRIPT) | xargs)
-   do   
-      local SOCKET="$(netstat -lp tcp 2>/dev/null | grep "$PID/python" | tr -s ' ' | tr ' ' ',')"
-      [[ -n $SOCKET ]] || continue
-      local PORT=$(echo $SOCKET | cut -d, -f4 | cut -d: -f2)
-      if [[ -n $PORT ]]
-      then
-         echo $PORT
-         break
-      fi
-   done
-   echo ""
-}
-
 function GetSet () {
-   RESULT="$($RIGCTL "$1")"
-   if (( $? != 0 ))
-   then
-      if [[ -n $XMLRPC_PORT ]]
-      then
-         Die "Unable to contact XML-RPC server http://localhost:$XMLRPC_PORT"
-      else
-         Die "Unable to communicate with radio via $PORT @ $SPEED bps.\nCheck serial port connection to radio and make sure radio's \"PC PORT BAUDRATE\" is set to $SPEED.\nOn the TM-D710G, the serial cable must be plugged in to the PC port on the TX/RX Unit,\nnot the COM port on the Operation panel."
-      fi
-   fi
+   RESULT="$($RIGCTL -c "$1")"
+   [[ $? == 0 ]] || Die "Unable to communicate with radio via $PORT @ $SPEED bps.\nCheck serial port connection to radio and make sure radio's \"PC PORT BAUDRATE\" is set to $SPEED.\nOn the TM-D710G, the serial cable must be plugged in to the PC port on the TX/RX Unit,\nnot the COM port on the Operation panel."
    local CMD="$(echo $1 | cut -d' ' -f1)"
    if [[ $RESULT =~ ^($CMD|N|\?) ]]
    then
@@ -370,8 +347,6 @@ DIR="/dev/serial/by-id"
 # The following PORTSTRING will be used if the '-s PORTSTRING' argument is not supplied
 DEFAULT_PORTSTRING="USB-Serial|RT_Systems|usb-FTDI"
 PORTSTRING="$DEFAULT_PORTSTRING"
-XMLRPC_CLIENT_SCRIPT="client710.py"
-MAIN_SCRIPT="710.py"
 
 declare -A MINFREQ
 MINFREQ[A]="118000000"
@@ -409,8 +384,6 @@ SPEED[1200]=0; SPEED[9600]=1
 
 declare -A STATE
 STATE[OFF]=0; STATE[ON]=1
-
-FOUND_XML=false
 
 #============================
 #  PARSE OPTIONS WITH GETOPTS
@@ -511,26 +484,17 @@ $DEBUG && set -x
 (( $# == 0 )) && Usage
 
 command -v bc >/dev/null || Die "Cannot find bc application.  To install it, run: sudo apt update && sudo apt install -y bc"
-command -v $MAIN_SCRIPT >/dev/null || Die "Cannot find 710.py."
-command -v $XMLRPC_CLIENT_SCRIPT >/dev/null || Die "Cannot find client710.py."
+command -v 710.py >/dev/null || Die "Cannot find 710.py."
 
 P1="${1^^}"
 P2="${2^^}"
 P3="${3^^}"
 P4="${4^^}"
 
-# If XMLRPC_PORT is empty, then no $MAIN_SCRIPT was found running 
-# an XML_RPC server. In that case, this script will attempt to interact
-# with $MAIN_SCRIPT directly using the '-c' argument. $MAIN_SCRIPT 
-# cannot already be running in this case
-XMLRPC_PORT=$(CheckForXMLRPC)
-
 [[ $P1 == "HELP" ]] && ScriptInfo full
 
-if [[ -z $XMLRPC_PORT && $PORT == "" ]]
-then 
-   # XMLRPC server not found and serial port not supplied
-   # Search for the serial port using $PORTSTRING
+if [[ $PORT == "" ]]
+then # User did not supply serial port.  Search for it using $PORTSTRING
 	MATCHES=$(ls $DIR 2>/dev/null | egrep -i "$PORTSTRING" | wc -l)
 	case $MATCHES in
 		0)
@@ -548,14 +512,10 @@ then
 	esac
 fi
 
-if [[ -n $XMLRPC_PORT ]]
-then
-   RIGCTL="$(command -v $XMLRPC_CLIENT_SCRIPT) -x $XMLRPC_PORT"
-else
-   pgrep -f $(basename $MAIN_SCRIPT) &>/dev/null && Die "Cannot run this script while $MAIN_SCRIPT is running without XML-RPC active."
-   RIGCTL="$(command -v $MAIN_SCRIPT) -p $PORT -b $SPEED -c"
-   MODEL="$(GetSet "ID")"
-fi
+pgrep -f 710.py >/dev/null 2>&1 && Die "Cannot run this script while 710.py is running."
+RIGCTL="$(command -v 710.py) -p $PORT -b $SPEED"
+MODEL="$(GetSet "ID")"
+
 case "$P1" in
    GET)
       case "$P2" in
@@ -564,31 +524,16 @@ case "$P1" in
             echo "Serial: $(GetSet "AE")"
             echo "APO is $(PrintAPO $(GetSet "MU"))"
             echo "TX Timeout is $(PrintTimeout $(GetSet "MU"))"
-            if [[ -n XMLRPC_PORT ]]
-            then
-               $0 GET PTTCTRL || Die
-            else
-               $0 -p $PORT GET PTTCTRL || Die 
-            fi
+            $0 -p $PORT GET PTTCTRL || Die 
             echo "External Data is on Side $(PrintDataSide $(GetSet "MU"))"
             echo "External data speed is $(PrintSpeed $(GetSet "MU"))"
 				PrintAIP $(GetSet "MU")
             echo "------------------------------------"
-            if [[ -n XMLRPC_PORT ]]
-            then
-               $0 GET A FREQ || Die
-            else
-               $0 -p $PORT GET A FREQ || Die
-            fi
+            $0 -p $PORT GET A FREQ || Die
             ANS="$(GetSet "PC 0")" 
             echo "Side A is at ${POWER[${ANS#*,}]} power"
             echo "------------------------------------"
-            if [[ -n XMLRPC_PORT ]]
-            then
-               $0 GET B FREQ || Die
-            else
-               $0 -p $PORT GET B FREQ || Die
-            fi
+            $0 -p $PORT GET B FREQ || Die
             ANS="$(GetSet "PC 1")" 
             echo "Side B is at ${POWER[${ANS#*,}]} power"
             exit 0

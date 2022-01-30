@@ -7,382 +7,89 @@ import serial
 import os
 import re
 import sys
-import queue
+from queue import Queue
 from threading import Thread
 import signal
 import tkinter as tk
-import datetime
-import kenwoodTM
+from common710 import stamp
+from common710 import QueryException
+from cat710 import Cat
+from gui710 import Display
+from xmlrpc710 import RigXMLRPC
 
+__title__ = "710.py"
 __author__ = "Steve Magnuson AG7GN"
-__copyright__ = "Copyright 2021, Steve Magnuson"
+__copyright__ = "Copyright 2022, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
-__license__ = "GPL"
-__version__ = "1.2.6"
+__license__ = "GPL v3.0"
+__version__ = "2.0.0"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
 running = True
 device = '/dev/ttyUSB0'
 baud = 57600
+xmlrpc_port = 12345
 exit_code = 0
 
 
-def sigint_handler(sig, frame):
-    print(f"{stamp()}: Signal handler caught {sig} {frame}")
-    global running
-    if running:
-        running = False
+def print_error(err: str):
+    """
+    If X windows environment detected, pop up a window with
+    the message, otherwise print error to the console (stderr).
+    :param err: String containing error message
+    :return: None
+    """
+    if os.environ.get('DISPLAY', '') == '':
+        print(f"{stamp()}: {err}", file=sys.stderr)
     else:
-        cleanup()
+        from tkinter import messagebox
+        try:
+            root.withdraw()
+        except NameError as e:
+            # root window hasn't been created yet. Make a new root
+            # for messagebox
+            error_root = tk.Tk()
+            error_root.withdraw()
+            messagebox.showerror(title=f"{__title__} ERROR!", message=err,
+                                 parent=error_root)
+            error_root.destroy()
+        else:
+            # Root window exists. Use it for messagebox.
+            messagebox.showerror(title=f"{__title__} ERROR!", message=err)
 
 
-def stop_q_reader():
-    global running
-    running = False
+def sigint_handler(sig, frame):
+    # print(f"{stamp()}: Signal handler caught {sig} {frame}")
+    cleanup()
 
 
 def cleanup():
-    print(f"{stamp()}: Start cleanup")
+    print(f"{stamp()}: Starting cleanup")
     global running
     if running:
         running = False
     try:
-        q_thread.join(timeout=2)
+        controller_thread.join(timeout=2)
     except RuntimeError as _:
-        print(f"{stamp()}: Thread stopped")
+        print(f"{stamp()}: Controller thread stopped")
+    if xmlrpc_server:
+        print(f"{stamp()}: Stopping XML-RPC server")
+        xmlrpc_server.stop()
+        xmlrpc_thread.join(timeout=1)
     ser.close()
-    root.quit()
-    root.update()
     print(f"{stamp()}: Cleanup completed")
-
-
-def handle_query(cmd: str):
-    myscreen.msg.mq.put(['INFO', f"{stamp()}: Sending '{cmd}'"])
-    result = mycat.query(cmd)
-    if mycat.serial_port_error:
-        print(f"{stamp()}: ERROR in handle_query: No response from radio",
-              file=sys.stderr)
-        global exit_code
-        exit_code = 1
-        return None
-    else:
-        return result
-
-
-def stamp():
-    return datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
-
-
-def q_reader(sq: object):
-    def get_arg_list(**kwargs):
-        if 'cmd' in kwargs:
-            cmd = kwargs['cmd']
-        else:
-            cmd = None
-        if len(job) > 1 and job[1] in ('A', 'B'):
-            _arg = mycat.side_dict['inv'][job[1]]
-            if cmd is None:
-                # No particular command requested. Determine command
-                # from current mode (VFO, MR, CC, or WX)
-                _answer = handle_query(f"VM {_arg}")
-                if _answer is None:
-                    return None
-                _, _, _m = list(_answer)
-                if _m == '0':  # vfo
-                    cmd = 'FO'
-                elif _m == '1':  # mr
-                    cmd = 'ME'
-                    _answer = handle_query(f"MR {_arg}")
-                    if _answer is None:
-                        return None
-                    _arg = _answer[2]  # Get the channel number
-                elif _m == '2':  # call
-                    cmd = 'CC'
-                else:  # wx
-                    cmd = 'VM'
-                    _arg = f"{_arg},3"
-            _answer = handle_query(f"{cmd} {_arg}")
-            if _answer is None:
-                return None
-            else:
-                return list(_answer)
-        else:
-            return None
-
-    global running
-    current_color = None
-    while running:
-        if sq.empty():  # queue is empty, so just update screen
-            # print("queue empty. update display")
-            data = mycat.get_radio_status()
-            if mycat.serial_port_error:
-                print(f"{stamp()}: q_reader ERROR: Could not retrieve "
-                      f"data from radio", file=sys.stderr)
-                global exit_code
-                exit_code = 1
-                break
-            if data:
-                for s in ('A', 'B'):
-                    for key in data[s]:
-                        myscreen.screen_label[s][key]. \
-                            config(text=data[s][key])
-                        myscreen.screen_label[s][key]. \
-                            pack(fill=tk.BOTH, expand=True)
-                        myscreen.screen_label[s][key].update()
-                if current_color != data['backlight']:
-                    # Update display to current background color
-                    myscreen.change_bg(color=data['backlight'])
-                    current_color = data['backlight']
-                myscreen.timeout_button.config(text=f"TX Timeout {data['timeout']}")
-                myscreen.timeout_button.update()
-                myscreen.lock_button.config(text=f"Lock is {data['lock']}")
-                myscreen.lock_button.update()
-                myscreen.vhf_aip_button.config(text=f"VHF AIP is {data['vhf_aip']}")
-                myscreen.vhf_aip_button.update()
-                myscreen.uhf_aip_button.config(text=f"UHF AIP is {data['uhf_aip']}")
-                myscreen.uhf_aip_button.update()
-                myscreen.speed_button.config(text=f"{data['speed']}")
-                myscreen.speed_button.update()
-                root.update()
-            else:  # No response from radio
-                root.update()
-                break
-        else:  # queue not empty. Process the job in the queue
-            job = sq.get()  # Get job from queue
-            if job[0] == 'quit':
-                break
-            myscreen.msg.mq.put(['INFO', f"{stamp()}: Working on {job}"])
-            if job[0] in ('mode',):  # 'VM' command - mode change requested
-                arg = f"VM {mycat.side_dict['inv'][job[1]]},{job[2]}"
-                if handle_query(arg) is None:
-                    break
-            elif job[0] in ('ptt', 'ctrl'):  # 'BC' command
-                answer = handle_query("BC")
-                if answer is None:
-                    break
-                ctrl = answer[1]
-                ptt = answer[2]
-                if job[0] == 'ptt':
-                    arg = f"BC {ctrl},{mycat.side_dict['inv'][job[1]]}"
-                else:  # Setting ctrl
-                    arg = f"BC {mycat.side_dict['inv'][job[1]]},{ptt}"
-                if handle_query(arg) is None:
-                    break
-            elif job[0] in ('power',):  # 'PC' command
-                arg = f"PC {mycat.side_dict['inv'][job[1]]},{job[2]}"
-                if handle_query(arg) is None:
-                    break
-            elif job[0] in ('lock',):
-                answer = handle_query("LK")
-                if answer is None:
-                    break
-                arg = "LK {}".format('1' if answer[1] == '0' else '0')
-                if handle_query(arg) is None:
-                    break
-            elif job[0] in ('frequency', 'modulation', 'step',
-                            'tone', 'tone_frequency', 'rev'):
-                arg_list = get_arg_list()
-                if arg_list is None or arg_list[0] == 'N':
-                    break
-                if arg_list[0] not in ['CC', 'FO', 'ME']:
-                    # WX or unknown mode. Skip this job.
-                    job[0] = None
-                if job[0] in ('tone', 'tone_frequency'):
-                    same_type = False
-                    for key, value in mycat.tone_type_dict['map'].items():
-                        if arg_list[int(key)] == '1':
-                            # Found the current tone type
-                            current_type = key
-                            if job[0] == 'tone' and job[2] == key:
-                                # Requested tone type is the same as current
-                                same_type = True
-                            break
-                    else:  # Current type is 'No Tone'
-                        current_type = '0'  # No Tone
-                        if current_type == job[2]:
-                            same_type = True
-                    if job[0] == 'tone' and not same_type:
-                        # Need to change the tone type.
-                        # Set all tones to off for now...
-                        # t is tone freq., c is CTCSS freq., d is DCS freq.
-                        _, t, c, d = list(mycat.tone_type_dict['map'].keys())
-                        arg_list[int(t)] = '0'
-                        arg_list[int(c)] = '0'
-                        arg_list[int(d)] = '0'
-                        if job[2] != '0':
-                            # Change to requested tone type
-                            arg_list[int(job[2])] = '1'
-                    # Also set the tone frequency for the new tone
-                    # type to the first dictionary entry for that
-                    # type because don't know what the user will
-                    # want it to be. Tone frequency is always 3
-                    # elements up in the list from the tone type
-                    if job[0] == 'tone_frequency' and current_type != '0':
-                        arg_list[int(current_type) + 3] = \
-                            mycat.tone_frequency_dict[current_type]['inv'][job[2]]
-                if job[0] == 'frequency':
-                    arg_list[2] = f"{int(job[2] * 1000000):010d}"
-                if job[0] == 'modulation':
-                    arg_list[13] = job[2]
-                if job[0] == 'step':
-                    arg_list[3] = job[2]
-                # if job[0] == 'rev' and arg_list[4] != '0':
-                if job[0] == 'rev':
-                    _freq = int(arg_list[2])
-                    if arg_list[5] == '0':
-                        # Change *TO* REV state
-                        arg_list[5] = '1'
-                        # Shift frequency
-                        if arg_list[4] == '1':
-                            # Shift +: add offset
-                            _freq += int(arg_list[12])
-                        if arg_list[4] == '2':
-                            # Shift -: add offset
-                            _freq -= int(arg_list[12])
-                    else:
-                        # Change *FROM* REV state
-                        arg_list[5] = '0'
-                        # Unshift frequency
-                        if arg_list[4] == '1':
-                            _freq -= int(arg_list[12])
-                        if arg_list[4] == '2':
-                            _freq += int(arg_list[12])
-                    arg_list[2] = f"{_freq:010d}"
-                else:
-                    pass
-                if arg_list[0] == 'ME':
-                    # MR mode
-                    # Kenwood provides no CAT command for changing the
-                    # frequency band on a given side. To work around
-                    # this shortcoming, we must modify the memory channel.
-                    myscreen.msg.mq.put(['WARNING',
-                                         f"{stamp()}: WARNING: Modifying "
-                                         f"memory {int(arg_list[1])}!"])
-                if job[0] is not None:
-                    if handle_query(f"{arg_list[0]} {','.join(arg_list[1:])}") is None:
-                        break
-            elif job[0] in ('beep', 'vhf_aip', 'uhf_aip', 'speed',
-                            'backlight', 'apo', 'data', 'timeout'):
-                # Get the current menu settings
-                mu = handle_query('MU')
-                if mu is None:
-                    break
-                mu_list = list(mu)
-
-                if job[0] == 'backlight':
-                    if current_color == 'green':
-                        desired_color = 'amber'
-                    else:
-                        desired_color = 'green'
-                    mu_list[mycat.menu_dict['backlight']['index']] = \
-                        mycat.menu_dict['backlight']['values'][desired_color]
-                elif job[0] == 'data':
-                    mu_list[38] = job[1]
-                elif job[0] == 'speed':
-                    mu_list[39] = job[1]
-                elif job[0] == 'timeout':
-                    mu_list[16] = job[1]
-                elif job[0] == 'vhf_aip':
-                    mu_list[11] = '0' if mu_list[11] == '1' else '1'
-                elif job[0] == 'uhf_aip':
-                    mu_list[12] = '0' if mu_list[12] == '1' else '1'
-                else:
-                    pass
-                arg = f"MU {','.join(mu_list[1:])}"
-                if handle_query(arg) is None:
-                    break
-                # Workaround for screen refresh bug: Move CTRL to
-                # opposite side and back to refresh screen so that
-                # radio display updates correctly.
-                if job[0] == 'data':
-                    bc = handle_query('BC')
-                    if bc is None:
-                        break
-                    _error = False
-                    for _ in range(2):
-                        if bc[1] == '0':
-                            ctrl_temp = '1'
-                        else:
-                            ctrl_temp = '0'
-                        bc = handle_query(f"BC {ctrl_temp},{bc[2]}")
-                        if bc is None:
-                            _error = True
-                            break
-                    if _error:
-                        break
-            elif job[0] in ('up', 'down'):
-                arg_list = get_arg_list()  # Get the channel data for current mode
-                if arg_list is None or arg_list[0] == 'N':
-                    break
-                channel = 0
-                if arg_list[0] == 'FO':
-                    frequency = int(arg_list[2])
-                    step = int(mycat.step_dict['map'][arg_list[3]]) * 1000
-                    if job[0] == 'down':
-                        step *= -1
-                    frequency += step
-                    _min = float(myscreen.frequency_limits[job[1]]['min']) * 1000000
-                    _max = float(myscreen.frequency_limits[job[1]]['max']) * 1000000
-                    # print(f"min = {_min}, max = {_min}")
-                    if _min <= frequency <= _max:
-                        arg_list[2] = f"{frequency:010d}"
-                elif arg_list[0] == 'ME':
-                    channel = int(arg_list[1])
-                    step = 1
-                    if job[0] == 'down':
-                        step *= -1
-                    channel += step
-                    _min = myscreen.memory_limits['min']
-                    _max = myscreen.memory_limits['max']
-                    if _min <= channel <= _max:
-                        arg_list.clear()
-                        arg_list = ['MR', '0' if job[1] == 'A' else '1',
-                                    f"{channel:03d}"]
-                else:
-                    pass
-                arg = f"{arg_list[0]} {','.join(arg_list[1:])}"
-                _ans = handle_query(arg)
-                if _ans is None:
-                    break
-                elif arg_list[0] == 'MR' and _ans[0] == 'N':
-                    myscreen.msg.mq.put(['ERROR',
-                                         f"{stamp()}: Memory "
-                                         f"{channel} is empty"])
-            elif job[0] in ('ch_number',):
-                arg_list = get_arg_list()  # Get the channel data for current mode
-                if arg_list is None or arg_list[0] == 'N':
-                    break
-                if arg_list[0] == 'ME':
-                    arg = f"MR {'0' if job[1] == 'A' else '1'},{job[2]}"
-                    _ans = handle_query(arg)
-                    if _ans is None:
-                        break
-                    elif _ans[0] == 'N':
-                        myscreen.msg.mq.put(['ERROR',
-                                             f"{stamp()}: Memory "
-                                             f"{int(job[2])} is empty"])
-            elif job[0] in ('micup', 'micdown',):
-                if job[0] == 'micup':
-                    arg = "UP"
-                else:
-                    arg = "DW"
-                if handle_query(arg) is None:
-                    break
-            else:
-                pass
-            sq.task_done()
-            # print(f'{stamp()}: Finished {job}')
-            myscreen.msg.mq.put(['INFO', f"{stamp()}: Finished {job}"])
-    print(f"{stamp()}: Leaving q_reader thread")
-    cleanup()
+    if root:
+        root.quit()
+        root.update()
 
 
 def get_ports():
     """
-    Walks /dev searching for paths with filnames or symlinks to filenames containing
-    ^tty(AMA[0-9]|S[0-9]|USB[0-9]). Returns a list of matching paths,
-    or empty list if there are no matches.
+    Walks /dev searching for paths with filenames or symlinks to
+    filenames containing ^tty(AMA[0-9]|S[0-9]|USB[0-9]).
+    Returns a list of matching paths, or empty list if there are
+    no matches.
     """
     ports = []
     excludes = ["char", "by-path"]
@@ -408,18 +115,56 @@ def get_ports():
     return ports
 
 
+def controller():
+    """
+    Updates the display while looking for and handling commands.
+    :return: None
+    """
+    global running
+    print(f"{stamp()}: Starting controller")
+    while running:
+        if cmd_queue.empty():
+            try:
+                rig_dictionary = rig.update_dictionary()
+            except IndexError as e:
+                print_error(f"Error communicating with radio on {arg_info.port}")
+                running = False
+                break
+            if rig_dictionary is None:
+                running = False
+                break
+            else:
+                gui.update_display(rig_dictionary)
+                if root:
+                    root.update()
+        else:
+            job = cmd_queue.get()  # Get job from queue
+            if job[0] == 'quit':
+                break
+            msg_queue.put(['INFO', f"{stamp()}: Queued {job}"])
+            result = rig.run_job(job, msg_queue)
+            if result is None:
+                running = False
+            else:
+                msg_queue.put(['INFO', f"{stamp()}: Finished {job}"])
+            cmd_queue.task_done()
+    print(f"{stamp()}: Controller stopped")
+    cleanup()
+
+
 if __name__ == "__main__":
     import argparse
 
     port_list = get_ports()
     if not port_list:
-        print(f"{stamp()}: ERROR: No serial ports found.",
-              file=sys.stderr)
+        # print(f"{stamp()}: ERROR: No serial ports found.",
+        #       file=sys.stderr)
+        print_error(f"No serial ports found.")
         sys.exit(1)
     if device not in port_list:
         device = port_list[0]
     signal.signal(signal.SIGINT, sigint_handler)
-    parser = argparse.ArgumentParser(prog='710.py',
+    parser = argparse.ArgumentParser(prog=__title__,
                                      description=f"CAT control for Kenwood TM-D710G/TM-V71A",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-v', '--version', action='version',
@@ -438,33 +183,53 @@ if __name__ == "__main__":
     parser.add_argument("-l", "--location", type=str, metavar="x:y",
                         help="x:y: Initial x and y position (in pixels) "
                              "of upper left corner of GUI.")
+    parser.add_argument("-x", "--xmlport", type=int,
+                        choices=range(1024, 65536),
+                        metavar="[1024-65535]", default=xmlrpc_port,
+                        help="TCP port on which to listen for "
+                             "XML-RPC rig control calls from "
+                             "clients such as Fldigi or Hamlib")
+    parser.add_argument("-r", "--rig", type=str,
+                        choices=('none', 'left', 'right'),
+                        default='none',
+                        help="Nexus DR-X Users: Select left or right "
+                             "radio if you want to control GPIO PTT via "
+                             "an XML-RPC 'rig.set_ptt' call. This will "
+                             "map to GPIO pin 12 for the left radio and "
+                             "pin 23 for the right. 'none' "
+                             "means that 'rig.set_ptt' calls will be ignored. "
+                             "In any case, PTT activation via CAT command "
+                             "is never used.")
     parser.add_argument("-c", "--command",
                         type=str, help="CAT command to send to radio (no GUI)")
     arg_info = parser.parse_args()
     if not arg_info.command:
-        print(f"{stamp()}: Using {arg_info.port} @ {arg_info.baudrate} bps")
+        print(f"{stamp()}: Opening {arg_info.port} @ {arg_info.baudrate} bps",
+              file=sys.stderr)
 
     try:
         ser = serial.Serial(arg_info.port, arg_info.baudrate, timeout=0.1,
                             writeTimeout=0.1)
     except serial.serialutil.SerialException:
-        print(f"{stamp()}: ERROR: Could not open serial port",
-              file=sys.stderr)
+        # print(f"{stamp()}: ERROR: Could not open serial port",
+        #       file=sys.stderr)
+        print_error(f"Could not open {arg_info.port}")
         sys.exit(1)
-    mycat = kenwoodTM.KenwoodTMCat(ser)
-
+    cmd_queue = Queue()
+    rig = Cat(ser, arg_info.rig)
     if arg_info.command:
-        query_answer = mycat.query(arg_info.command)
+        query_answer = rig.handle_query(arg_info.command)
         if query_answer:
             print(f"{query_answer[0]} {','.join(query_answer[1:])}")
             sys.exit(0)
         else:
-            print(f"{stamp()}: ERROR: Could not communicate with radio.",
-                  file=sys.stderr)
+            # print(f"{stamp()}: ERROR: Could not communicate with radio.",
+            #       file=sys.stderr)
+            print_error(f"Could not communicate with radio on {arg_info.port}.")
             sys.exit(1)
 
     if os.environ.get('DISPLAY', '') == '':
-        print(f"{stamp()}: No $DISPLAY environment. "
+        print(f"No $DISPLAY environment. "
               f"Only '-c' option works without X", file=sys.stderr)
         sys.exit(1)
         # os.environ.__setitem__('DISPLAY', ':0.0')
@@ -483,8 +248,8 @@ if __name__ == "__main__":
             x_loc = int(loc[0])
             y_loc = int(loc[1])
         except (ValueError, IndexError):
-            print(f"{stamp()}: '{arg_info.location}' is an invalid screen position. "
-                  f"Using defaults instead.",
+            print(f"{stamp()}: '{arg_info.location}' is an invalid "
+                  f"screen position. Using defaults instead.",
                   file=sys.stderr)
             loc = None
         else:
@@ -493,38 +258,61 @@ if __name__ == "__main__":
             if 0 <= x_loc < x_max - 100 and 0 <= y_loc < y_max - 100:
                 loc = (x_loc, y_loc)
             else:
-                print(f"{stamp()}: '{arg_info.location}' is an invalid screen position. "
-                      f"Using defaults instead.",
+                print(f"{stamp()}: '{arg_info.location}' is an invalid "
+                      f"screen position. Using defaults instead.",
                       file=sys.stderr)
                 loc = None
-
-    q = queue.Queue()
-    myscreen = kenwoodTM.KenwoodTMScreen(root=root,
-                                         version=__version__,
-                                         queue=q, size=size,
-                                         initial_location=loc)
-
     # Commands to verify we can communicate with the radio. If all work,
     # then there's a good chance the port isn't in use by another app
     test_queries = ('MS', 'AE', 'ID')
     for test in test_queries:
-        query_answer = mycat.query(test)
+        query_answer = rig.handle_query(test)
         if not query_answer:
-            print(f"{stamp()}: ERROR: Could not communicate with radio.")
+            # print(f"{stamp()}: ERROR: Could not communicate with radio.")
+            print_error(f"Could not communicate with "
+                        f"radio on {arg_info.port}")
             sys.exit(1)
-    print(f"{stamp()}: Found {query_answer[1]}")
-    myscreen.msg.mq.put(['INFO', f"{stamp()}: Found {query_answer[1]}"])
-    q_thread = Thread(target=q_reader, args=(q,))
-    q_thread.start()
+    print(f"{stamp()}: Found {query_answer[1]}", file=sys.stderr)
+    rig.set_id(query_answer[1])
 
-    # root.bind('<Escape>', lambda e: cleanup())
+    # Set up XML-RPC server and corresponding thread.
+    try:
+        xmlrpc_server = RigXMLRPC(arg_info.xmlport, rig, cmd_queue)
+    except OSError as error:
+        # print(f"ERROR: XML-RPC port {arg_info.xmlport} is already in use")
+        print_error(f"XML-RPC port {arg_info.xmlport} is already in use.\n\n"
+                    f"Is Flrig running? Close it before running {__title__}.")
+        ser.close()
+        sys.exit(1)
+    xmlrpc_thread = Thread(target=xmlrpc_server.start)
+    # Kill this thread when the main app terminates
+    xmlrpc_thread.setDaemon(True)
+
+    # Set up the GUI
+    msg_queue = Queue()
+    gui = Display(root=root, version=__version__,
+                  cmd_queue=cmd_queue, msg_queue=msg_queue,
+                  size=size, initial_location=loc)
+    msg_queue.put(['INFO', f"{stamp()}: Found {query_answer[1]}"])
+    controller_thread = Thread(target=controller)
+    controller_thread.start()
+
+    # Wait until radio is read and state dictionary to be populated
+    # before starting the XML-RPC server so we have something to serve
+    while rig.get_dictionary()['speed'] is None:
+        pass
+    print(f"{stamp()}: Starting XML-RPC server", file=sys.stderr)
+    xmlrpc_thread.start()
+
     # Stop program if Esc key pressed
-    root.bind('<Escape>', lambda e: stop_q_reader())
+    root.bind('<Escape>', lambda e: cleanup())
     # Stop program if window is closed at OS level ('X' in upper right
     # corner or red dot in upper left on Mac)
     root.protocol("WM_DELETE_WINDOW",
-                  lambda: stop_q_reader())
-    print(f"{stamp()}: Starting mainloop")
+                  lambda: cleanup())
+    print(f"{stamp()}: Starting mainloop", file=sys.stderr)
     root.mainloop()
-    print(f"{stamp()}: Mainloop stopped")
-    sys.exit(exit_code)
+    print(f"{stamp()}: Mainloop stopped", file=sys.stderr)
+    # SIGTERM is necessary if there's a connected TCP socket
+    this_process = os.getpgid(0)
+    os.killpg(this_process, signal.SIGTERM)

@@ -22,7 +22,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2022, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -314,5 +314,5 @@ if __name__ == "__main__":
     root.mainloop()
     print(f"{stamp()}: Mainloop stopped", file=sys.stderr)
     # SIGTERM is necessary if there's a connected TCP socket
-    this_process = os.getpgid(0)
-    os.killpg(this_process, signal.SIGTERM)
+    this_process = os.getpid()
+    os.kill(this_process, signal.SIGTERM)

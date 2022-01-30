@@ -227,6 +227,7 @@ function set_FREQ () {
    else
       Die "Frequency must be number between $(PrintMHz ${MINFREQ[$1]}) and $(PrintMHz ${MAXFREQ[$1]}) MHz"
    fi
+}
 
 function get_FREQ () {
    ANS="$(GetSet "FO ${SIDE[$1]}")" 

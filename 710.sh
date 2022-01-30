@@ -114,7 +114,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 5.3.1
+#-    version         ${SCRIPT_NAME} 5.3.2
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -215,6 +215,54 @@ function GetSet () {
    else
     	kill -SIGUSR1 $$
    fi
+}
+
+function set_FREQ () {
+   [[ $P4 =~ ^[0-9]+([.][0-9]+)?$ ]] || Die "Frequency must be number between $(PrintMHz ${MINFREQ[$1]}) and $(PrintMHz ${MAXFREQ[$1]}) MHz"
+   FR=$(printf "%0.f" $(bc -l <<< "$P4*1000000"))
+   if (( $FR <= ${MAXFREQ[$1]} )) && (( $FR >= ${MINFREQ[$1]} ))
+   then
+      ANS="$(GetSet "VM ${SIDE[$1]},0")" # Set side to VFO before setting frequency
+      ANS="$(GetSet "FO ${SIDE[$1]},$(printf "%010d" $((10#$FR))),0,0,0,0,0,0,00,00,000,00000000,0")"
+   else
+      Die "Frequency must be number between $(PrintMHz ${MINFREQ[$1]}) and $(PrintMHz ${MAXFREQ[$1]}) MHz"
+   fi
+
+function get_FREQ () {
+   ANS="$(GetSet "FO ${SIDE[$1]}")" 
+   PrintFreq "$ANS" "FO" ""
+   ANS="$(GetSet "VM ${SIDE[$1]}")" 
+   echo -n "Side $1 is in ${MODE1[${ANS#*,}]} mode"
+	if [[ ${MODE1[${ANS#*,}]} == "Memory" ]]
+	then
+		ANS="$(GetSet "MR ${SIDE[$1]}")"
+		ANS="$(GetSet "MN ${ANS#*,}")"
+		echo ": Memory location: $ANS"
+	else
+		echo
+	fi
+}
+
+function get_PTTCTRL () {
+	ANS="$(GetSet "BC")"
+	CTRL=${ANS%,*}           
+	PTT=${ANS#*,}
+	case "$PTT" in
+		0|1)
+  			echo "PTT is on Side ${SIDE[$PTT]}"
+  			;;   
+		*)
+  			Die "ERROR: Unable to determine PTT state $PTT"
+			;;
+   esac
+   case "$CTRL" in
+   	0|1)
+   		echo "CTRL is on Side ${SIDE[$CTRL]}"
+      	;;   
+      *)
+      	Die "ERROR: Unable to determine CTRL state $CTRL."
+			;;
+   esac
 }
 
 function PrintMHz () {
@@ -573,31 +621,16 @@ case "$P1" in
             echo "Serial: $(GetSet "AE")"
             echo "APO is $(PrintAPO $(GetSet "MU"))"
             echo "TX Timeout is $(PrintTimeout $(GetSet "MU"))"
-            if [[ -n XMLRPC_PORT ]]
-            then
-               $0 GET PTTCTRL || Die
-            else
-               $0 -p $PORT GET PTTCTRL || Die 
-            fi
+            get_PTTCTRL
             echo "External Data is on Side $(PrintDataSide $(GetSet "MU"))"
             echo "External data speed is $(PrintSpeed $(GetSet "MU"))"
 				PrintAIP $(GetSet "MU")
             echo "------------------------------------"
-            if [[ -n XMLRPC_PORT ]]
-            then
-               $0 GET A FREQ || Die
-            else
-               $0 -p $PORT GET A FREQ || Die
-            fi
+            get_FREQ A
             ANS="$(GetSet "PC 0")" 
             echo "Side A is at ${POWER[${ANS#*,}]} power"
             echo "------------------------------------"
-            if [[ -n XMLRPC_PORT ]]
-            then
-               $0 GET B FREQ || Die
-            else
-               $0 -p $PORT GET B FREQ || Die
-            fi
+            get_FREQ B
             ANS="$(GetSet "PC 1")" 
             echo "Side B is at ${POWER[${ANS#*,}]} power"
             exit 0
@@ -640,25 +673,7 @@ case "$P1" in
 				exit 0
 				;;
          PTTCTRL)
-   			ANS="$(GetSet "BC")"
-   			CTRL=${ANS%,*}           
-   			PTT=${ANS#*,}
-   			case "$PTT" in
-      			0|1)
-         			echo "PTT is on Side ${SIDE[$PTT]}"
-         			;;   
-      			*)
-         			Die "ERROR: Unable to determine PTT state $PTT"
-						;;
-   			esac
-   			case "$CTRL" in
-      			0|1)
-         			echo "CTRL is on Side ${SIDE[$CTRL]}"
-         			;;   
-      			*)
-         			Die "ERROR: Unable to determine CTRL state $CTRL."
-						;;
-   			esac
+         	get_PTTCTRL
             exit 0
             ;;
          PO*)
@@ -821,30 +836,8 @@ case "$P3" in
 		PrintAIP $(GetSet "MU")
 		;;
    FREQ*) # Frequency
-		if [[ $P1 == "SET" ]]
-		then
-        	[[ $P4 =~ ^[0-9]+([.][0-9]+)?$ ]] || Die "Frequency must be number between $(PrintMHz ${MINFREQ[$P2]}) and $(PrintMHz ${MAXFREQ[$P2]}) MHz"
-         FR=$(printf "%0.f" $(bc -l <<< "$P4*1000000"))
-         if (( $FR <= ${MAXFREQ[$P2]} )) && (( $FR >= ${MINFREQ[$P2]} ))
-         then
-            ANS="$(GetSet "VM ${SIDE[$P2]},0")" # Set side to VFO before setting frequency
-            ANS="$(GetSet "FO ${SIDE[$P2]},$(printf "%010d" $((10#$FR))),0,0,0,0,0,0,00,00,000,00000000,0")"
-         else
-            Die "Frequency must be number between $(PrintMHz ${MINFREQ[$P2]}) and $(PrintMHz ${MAXFREQ[$P2]}) MHz"
-         fi
-      fi
-      ANS="$(GetSet "FO ${SIDE[$P2]}")" 
-      PrintFreq "$ANS" "FO" ""
-      ANS="$(GetSet "VM ${SIDE[$P2]}")" 
-      echo -n "Side $P2 is in ${MODE1[${ANS#*,}]} mode"
-		if [[ ${MODE1[${ANS#*,}]} == "Memory" ]]
-		then
-			ANS="$(GetSet "MR ${SIDE[$P2]}")"
-			ANS="$(GetSet "MN ${ANS#*,}")"
-			echo ": Memory location: $ANS"
-		else
-			echo
-		fi
+		set_FREQ $P2
+		get_FREQ $P2
       ;;
    MO*) # Mode
       if [[ $P1 == "SET" ]]
@@ -905,7 +898,7 @@ case "$P3" in
       ;;
    PTTCTRL) # PTT/CTRL
       ANS="$(GetSet "BC ${SIDE[$P2]},${SIDE[$P2]}")" 
-      $0 -p $PORT GET PTTCTRL || Die
+      get_PTTCTRL
       ;;
    PTT) # PTT
       ANS="$(GetSet "BC")"
@@ -917,7 +910,7 @@ case "$P3" in
       else
          ANS="$(GetSet "BC $CTRL,1")" 
       fi      
-      $0 -p $PORT GET PTTCTRL || Die
+      get_PTTCTRL
       ;;
    CTRL) # CTRL
       ANS="$(GetSet "BC")"
@@ -929,7 +922,7 @@ case "$P3" in
       else
          ANS="$(GetSet "BC 1,$PTT")" 
       fi      
-      $0 -p $PORT GET PTTCTRL || Die
+      get_PTTCTRL
       ;;
 	DA*) # External Data Side
 		ANS="$(GetSet "MU")"

@@ -36,7 +36,10 @@ class Display(object):
     _screen_bg_color = _green
 
     def __init__(self, **kwargs):
+        default_kwargs = {'title': 'Kenwood TM-D710G/TM-V71A Controller'}
+        kwargs = {**default_kwargs, **kwargs}
         self.master = kwargs['root']
+        self.title = kwargs['title']
         self.version = kwargs['version']
         self.cmd_q = kwargs['cmd_queue']
         size = kwargs.get('size', 'normal')
@@ -160,7 +163,7 @@ class Display(object):
             x = kwargs['initial_location'][0]
             y = kwargs['initial_location'][1]
         self.master.geometry(f"{w}x{h}+{x}+{y}")
-        self.master.title(f"Kenwood TM-D710G/TM-V71A Controller {self.version}")
+        self.master.title(f"{self.title} {self.version}")
         self.master['padx'] = 5
         self.master['pady'] = 5
         self.master.resizable(0, 0)

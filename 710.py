@@ -12,7 +12,6 @@ from threading import Thread
 import signal
 import tkinter as tk
 from common710 import stamp
-from common710 import QueryException
 from cat710 import Cat
 from gui710 import Display
 from xmlrpc710 import RigXMLRPC
@@ -46,7 +45,7 @@ def print_error(err: str):
         from tkinter import messagebox
         try:
             root.withdraw()
-        except NameError as e:
+        except NameError as _:
             # root window hasn't been created yet. Make a new root
             # for messagebox
             error_root = tk.Tk()
@@ -126,7 +125,7 @@ def controller():
         if cmd_queue.empty():
             try:
                 rig_dictionary = rig.update_dictionary()
-            except IndexError as e:
+            except IndexError as _:
                 print_error(f"Error communicating with radio on {arg_info.port}")
                 running = False
                 break
@@ -290,7 +289,9 @@ if __name__ == "__main__":
 
     # Set up the GUI
     msg_queue = Queue()
-    gui = Display(root=root, version=__version__,
+    gui = Display(root=root,
+                  title=f"Kenwood {query_answer[1]} Controller",
+                  version=__version__,
                   cmd_queue=cmd_queue, msg_queue=msg_queue,
                   size=size, initial_location=loc)
     msg_queue.put(['INFO', f"{stamp()}: Found {query_answer[1]}"])

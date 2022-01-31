@@ -46,7 +46,7 @@ Pick either Easy or Manual Installation.
 ### Easy Installation (for Nexus DR-X users)
 - Make sure your Pi is connected to the Internet.
 - Click __Raspberry > Hamradio > Update Pi and Ham Apps__.
-- Check __710__, click __OK__.
+- Check __710__ and __hamlib__, click __OK__.
 
 ### Manual Installation
 - Make sure your Pi is connected to the Internet.
@@ -61,7 +61,7 @@ Pick either Easy or Manual Installation.
 
 ## OPTIONAL: Add a `udev` rule for your USB-serial cable
 
-This is optional but recommended and will ensure that your radio's cable always is identified by the same serial port name on your Pi.
+This is optional but recommended and will ensure that your radio's cable always is identified as the same serial port name on your Pi.
 
 1. With your USB-serial cable for your radio __unplugged__ from the Pi, run this command in the Terminal:
 
@@ -192,7 +192,7 @@ Installing these scripts as per the directions above does not automatically crea
 	- Unplug your USB-serial cable from your Pi.
 	- Open a Terminal on your Pi and run this command:
 
-		dmesg -w -H 
+			dmesg -w -H 
 		
 		You'll see lots of output and then it'll pause and wait for some event to happen (like plugging in a USB device).
 	- Plug your USB-serial cable into your Pi (the radio does not have to be on).

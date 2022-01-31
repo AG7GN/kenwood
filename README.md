@@ -14,8 +14,6 @@ The `710.sh` script requires `710.py` to talk to the radio. It does not start th
 
 ## Most recent significant changes
 
-### Latest Versions
-
 1. `710.py` now has a multithreaded XML-RPC server. This allows Fldigi to communicate with `710.py` as if `710.py` were Flrig. Apps using Hamlib can also use `710.py` via hamlib's 'FLRig' setting. Details below.
 
 1. `710.sh` can interact with `710.py` as it always has, by calling it and passing commands via `710.py -c COMMAND`. Now, it can also interact via XML-RPC. This means that `710.sh` can be used while `710.py` is running.
@@ -61,7 +59,78 @@ Pick either Easy or Manual Installation.
 		sudo cp kenwood/*.py /usr/local/bin/
 		sudo cp kenwood/*.png /usr/share/pixmaps/
 
+## OPTIONAL: Add a `udev` rule for your USB-serial cable
+
+This is optional but recommended and will ensure that your radio's cable always is identified by the same serial port name on your Pi.
+
+1. With your USB-serial cable for your radio __unplugged__ from the Pi, run this command in the Terminal:
+
+		lsusb
+	
+	For example:
+	
+		pi@nexuspi4b-ag7gn:~ $ lsusb
+		Bus 002 Device 002: ID 0bda:0316 Realtek Semiconductor Corp. Card Reader
+		Bus 002 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
+		Bus 001 Device 010: ID 067b:2303 Prolific Technology, Inc. PL2303 Serial Port / Mobile Action MA-8910P
+		Bus 001 Device 002: ID 2109:3431 VIA Labs, Inc. Hub
+		Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+
+1. Connect your USB-serial cable to a USB port on your Pi. Your radio does not have to be powered on.
+
+1. Run `lsusb` again. 
+
+	For example:
+
+		pi@nexuspi4b-ag7gn:~ $ lsusb
+		Bus 002 Device 002: ID 0bda:0316 Realtek Semiconductor Corp. Card Reader
+		Bus 002 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
+		Bus 001 Device 010: ID 067b:2303 Prolific Technology, Inc. PL2303 Serial Port / Mobile Action MA-8910P
+		Bus 001 Device 011: ID 0403:6001 Future Technology Devices International, Ltd FT232 Serial (UART) IC
+		Bus 001 Device 002: ID 2109:3431 VIA Labs, Inc. Hub
+		Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+
+1. Note the differences between the outputs of the two runs. In this example, the second run of `lsusb` has one additional line:
+
+		Bus 001 Device 011: ID 0403:6001 Future Technology Devices International, Ltd FT232 Serial (UART) IC
+
+	That's the cable you just plugged in. We'll create a `udev` rule so that this serial port has a consistent name, which we'll call `kenwoodTM-V71A`. you can use whatever name you like. Don't use any spaces in your name and keep it simple.
+	
+1. The rule will use the ID information to identify that particular cable. In this example, the ID is `0403:6001`. Your cable will very likely have a different ID. The ID consists of 2 parts, The part before the `:` is the `idVendor` and the part after the `:` is the `idProduct`.
+
+1. To make the rule, enter these commands in the Terminal using the ATTR values for your cable (Note that after the 1st 2 commands, you'll get a `>` prompt):
+
+		cat >99-kenwood.rules <<EOF
+		SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", SYMLINK+="kenwoodTM-V71A"
+		EOF
+		sudo mv 99-kenwood.rules /etc/udev/rules.d/
+		sudo udevadm control --reload
+		
+	For example:
+	
+		pi@nexuspi4b-ag7gn:~ $ cat >99-kenwood.rules <<EOF
+		> SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", SYMLINK+="kenwoodTM-V71A"
+		> EOF
+		
+		pi@nexuspi4b-ag7gn:~ $ sudo mv 99-kenwood.rules /etc/udev/rules.d/
+
+		pi@nexuspi4b-ag7gn:~ $ sudo udevadm control --reload
+
+1. Unplug your USB-serial cable from your Pi and plug it back in.
+
+1. Now you'll see your serial port in `/dev/`. Run `ls -al /dev/ken*` to see it. 
+
+	For example:
+
+		pi@nexuspi4b-ag7gn:~ $ ls -al /dev/ken*
+		lrwxrwxrwx 1 root root 7 Jan 30 16:15 /dev/kenwoodTM-V71A -> ttyUSB1
+
+1. From now on, your serial port will be called `/dev/kenwoodTM-V71A` even if you disconnect/reconnect the cable or reboot the Pi.
+
+
 ## Operating `710.py`
+
+If you did the optional `udev` rule setup in the previous step, then you already know the serial port for your radio (`/dev/kenwoodTM-V71A` in the example). If you didn't, you'll have to figure out the port now. 
 
 - Open a terminal and run:
 
@@ -70,21 +139,21 @@ Pick either Easy or Manual Installation.
 	- By default, `710.py` will attempt to use `/dev/ttyUSB0` at 57600 baud to communicate with the radio. 
 	- You can specify a different serial port or speed on the command line. Run `710.py -h` for instructions.  Running it with `-h` will display ports that it has identified as serial ports.
 	
-- For example, to use port `/dev/ttyUSB1` @ 19200 baud, run it like this:
+- For example, to use the port we created in the optional `udev` step earlier `/dev/kenwoodTM-V71A` @ 19200 baud, run it like this:
 	
-		710.py -p /dev/ttyUSB1 -b 19200
+		710.py -p /dev/kenwoodTM-V71A -b 19200
 
-	The baud rate must match the radio's __PC Port Baudrate__ (menu __920__) in the 710 and the equivalent in the 71A.
+	The baud rate must match the radio's __PC Port Baudrate__ (menu __920__) in the 710 and the equivalent in the 71A. By default, `710.py` uses `57600` unless you specify otherwise. Again, make sure your radio is set to the same value.
 	
 	The GUI features tool tips, which describe the different elements on the screen as you move your mouse over them.
 	
 	If you want the GUI to use a smaller desktop footprint, add the `--small` argument to `710.py`.
 
-- Running `710.py -h` on one of my Pis for example shows:
+- Running `710.py -h` my Pi for example shows:
 
 		pi@nexuspi4b-ag7gn:~ $ 710.py -h
 		usage: 710.py [-h] [-v]
-				[-p {/dev/gps1,/dev/ttyUSB1,/dev/serial0,/dev/serial1,/dev/ttyS0,/dev/ttyAMA0,/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0}]
+				[-p {/dev/kenwoodTM-V71A,/dev/gps1,/dev/ttyUSB1,/dev/serial0,/dev/serial1,/dev/ttyS0,/dev/ttyAMA0,/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0}]
 				[-b {300,1200,2400,4800,9600,19200,38400,57600}] 
 				[-s] 
 				[-l x:y] 
@@ -97,7 +166,7 @@ Pick either Easy or Manual Installation.
 		optional arguments:
 		  -h, --help      show this help message and exit
 		  -v, --version   show program's version number and exit
-		  -p {/dev/gps1,/dev/ttyUSB1,/dev/serial0,/dev/serial1,/dev/ttyS0,/dev/ttyAMA0,/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0}, --port {/dev/gps1,/dev/ttyUSB1,/dev/serial0,/dev/serial1,/dev/ttyS0,/dev/ttyAMA0,/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0}
+		  -p {/dev/kenwoodTM-V71A,/dev/gps1,/dev/ttyUSB1,/dev/serial0,/dev/serial1,/dev/ttyS0,/dev/ttyAMA0,/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0}, --port {/dev/kenwoodTM-V71A,/dev/gps1,/dev/ttyUSB1,/dev/serial0,/dev/serial1,/dev/ttyS0,/dev/ttyAMA0,/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0}
 					Serial port connected to radio (default: /dev/gps1)
 		  -b {300,1200,2400,4800,9600,19200,38400,57600}, --baudrate {300,1200,2400,4800,9600,19200,38400,57600}
 					Serial port speed (must match radio) (default: 57600)
@@ -114,30 +183,30 @@ Pick either Easy or Manual Installation.
 					CAT command to send to radio (no GUI) (default: None)
 
 
-### Make a __Hamradio__ menu selection for `710.py`
+### Make a Hamradio menu selection for `710.py`
 
-Installing these scripts as per the directions above does not automatically create a Hamradio menu item because it is not possible to know in advance your system's serial port that will be used to communicate with the radio. You can make your own Hamradio menu item as described here. Some sleuthing might be needed to identify your radio's serial port.
+Installing these scripts as per the directions above does not automatically create a Hamradio menu item because it is not possible to know in advance your system's serial port that will be used to communicate with the radio. You can make your own Hamradio menu item as described here. Some sleuthing might be needed to identify your radio's serial port if you haven't already done so.
 
-Here's one way to do it:
+1.	If you haven't already determined the serial port name for your radio's cable, here's one way to do it:
 
-1. Unplug your USB-serial cable from your Pi.
-1. Open a Terminal on your Pi and run this command:
+	- Unplug your USB-serial cable from your Pi.
+	- Open a Terminal on your Pi and run this command:
 
 		dmesg -w -H 
 		
-	You'll see lots of output and then it'll pause and wait for some event to happen (like plugging in a USB device).
-1. Plug your USB-serial cable into your Pi (the radio does not have to be on).
-1. You should see some `dmesg` output appear in your Terminal. It'll look something like this:
+		You'll see lots of output and then it'll pause and wait for some event to happen (like plugging in a USB device).
+	- Plug your USB-serial cable into your Pi (the radio does not have to be on).
+	- You should see some `dmesg` output appear in your Terminal. It'll look something like this:
 
-		[Jan28 15:00] usb 1-1.4: new full-speed USB device number 4 using xhci_hcd
-		[  +0.134526] usb 1-1.4: New USB device found, idVendor=067b, idProduct=2303, bcdDevice= 4.00
-		[  +0.000009] usb 1-1.4: New USB device strings: Mfr=1, Product=2, SerialNumber=0
-		[  +0.000006] usb 1-1.4: Product: USB-Serial Controller D
-		[  +0.000006] usb 1-1.4: Manufacturer: Prolific Technology Inc. 
-		[  +0.002693] pl2303 1-1.4:1.0: pl2303 converter detected
-		[  +0.009797] usb 1-1.4: pl2303 converter now attached to ttyUSB1
+			[Jan28 15:00] usb 1-1.4: new full-speed USB device number 4 using xhci_hcd
+			[  +0.134526] usb 1-1.4: New USB device found, idVendor=067b, idProduct=2303, bcdDevice= 4.00
+			[  +0.000009] usb 1-1.4: New USB device strings: Mfr=1, Product=2, SerialNumber=0
+			[  +0.000006] usb 1-1.4: Product: USB-Serial Controller D
+			[  +0.000006] usb 1-1.4: Manufacturer: Prolific Technology Inc. 
+			[  +0.002693] pl2303 1-1.4:1.0: pl2303 converter detected
+			[  +0.009797] usb 1-1.4: pl2303 converter now attached to ttyUSB1
 
-1. In this example, that last line tells you that the USB-Serial cable you plugged in is "`...now attached to ttyUSB1`". So, the serial port in this example is `/dev/ttyUSB1`. Yours may be different. With that information, you can now make a `desktop` file. Note that this example desktop file will launch `710.py` in "small" mode so it doesn't occupy so much screen real estate.
+	- In this example, that last line tells you that the USB-Serial cable you plugged in is "`...now attached to ttyUSB1`". So, the serial port in this example is `/dev/ttyUSB1`. Yours may be different. With that information, you can now make a `desktop` file. Note that this example desktop file will launch `710.py` in "small" mode so it doesn't occupy so much screen real estate.
 
 1. Create your `desktop` file
 	- Using your favorite text editor, create a file called `$HOME/.local/share/applications/kenwoodtm.desktop`. Here's one way to do that:
@@ -154,7 +223,7 @@ Here's one way to do it:
 			[Desktop Entry]
 			Name=TM-D710G/TM-V71A Controller
 			Comment=Kenwood TM-D710G/TM-V71A Controller
-			Exec=sh -c "710.py -p /dev/ttyUSB1 --small >/dev/null 2>&1"
+			Exec=sh -c "710.py -p /dev/kenwoodTM-V71A -r right --small >/dev/null 2>&1"
 			Icon=hamradio.png
 			StartupNotify=true
 			Terminal=false
@@ -164,7 +233,7 @@ Here's one way to do it:
 
 	- Change the `Exec=` line to add/remove/modify arguments for your particular serial port/speed. Omit the `--small` if you want to run the GUI in regular size. 
 	
-		If you want GPIO PTT control via XML-RPC, also specify `-r left` or `-r right` for the left or right radios respectively. This is ONLY needed if you want to control PTT via XML-RPC calls!
+		If you want GPIO PTT control via XML-RPC, also specify `-r left` or `-r right` for the left or right radios respectively. This is only needed if you want to control PTT via XML-RPC calls, but it doesn't hurt to include it anyway.
 
 	- Change the `Name=` line to suit. This is the menu item name.
 
@@ -200,19 +269,19 @@ Nexus DR-X users can use the __Hamlib Rig Control GUI__ to manage Hamlib.
 
 - Start the `710.py` script. 
 	- Be sure to use the default port of `12345` (in other words, don't specify a different port with the `-x` option). Hamlib will only work over port `12345`. 
-	- If you want Hamlib to control PTT, then run `710.py` with `-r left` or `-r right` to control the left or right radio. This is needed for apps that cannot control GPIO PTT directly and must rely on Hamlib for PTT.
+	- If you want Hamlib to control PTT, then run `710.py` with `-r left` or `-r right` to control the left or right radio. This is needed for apps that cannot control GPIO PTT directly and so must rely on Hamlib for PTT. Fldigi and Direwolf can control GPIO PTT directly.
 - Run __Raspberry > Hamradio > Hamlib Rig Control GUI__ 
 - Enter `flrig` in the __Rig search string__ field, then click __Find__. 
 - Check __Flrig__ in the list.
-- Set the __Serial Port__ and __Speed__ fields to __Not Applicatble__.
+- Set the __Serial Port__ and __Speed__ fields to __Not Applicable__.
 - Click __Save Changes & [Re]start rigctld__.
 - You should now see that rigctld is running as shown in green:
 
 	![hamlib flrig](img/hamlib_flrig.png)
 
-- Applications that use Hamlib for rig control and PTT should now work with the Kenwood radio.
+- Applications that use Hamlib for rig control (and PTT if you launched `710.py` with `-r left|right`) should now work with the Kenwood radio.
 
-__NOTE:__ If you close `710.py` while `rigctld` is running, you'll have to restart `rigctld` again once `710.py` is running.
+__IMPORTANT:__ If you close `710.py` while `rigctld` is running, you'll have to restart `rigctld` again once `710.py` is running.
 
 ## Operating `710.sh`
 - Open a terminal and run:
@@ -220,40 +289,42 @@ __NOTE:__ If you close `710.py` while `rigctld` is running, you'll have to resta
 		710.sh -h
 	and follow the instructions.  
 
-`710.sh` will attempt to communicate with the radio in one of 2 ways:
+- `710.sh` will attempt to communicate with the radio via `710.py` in one of 2 ways:
 
-1.	__If `710.py` IS ALREADY running:__ `710.sh` will use XML-RPC to send the command to `710.py`, which will in turn send the command to the radio. This is the slower of the 2 ways to communicate with the radio, but has the advantage that `710.py` can be running when you send your commands.
+	1.	__If `710.py` IS ALREADY running:__ `710.sh` will use XML-RPC to send the command to `710.py`, which will in turn send the command to the radio. This is the slower of the 2 ways to communicate with the radio, but has the advantage that `710.py` can be running when you send your commands.
 
-2. __If `710.py` IS NOT running:__ `710.sh` will attempt to start `710.py` in non-GUI "one shot" mode. No GUI will open, but `710.py` will send the command passed to it by `710.sh`, return the results to `710.sh`, and then exit. This is the way that `710.sh` operated in previous versions and will return data faster than the first method.
+	2. __If `710.py` IS NOT running:__ `710.sh` will attempt to start `710.py` in non-GUI "one shot" mode. No GUI will open, but `710.py` will send the command passed to it by `710.sh`, return the results to `710.sh`, and then exit. This is the way that `710.sh` operated in previous versions and returns data faster than the first method.
 
-If you use the second method, the script will look for USB-serial cables (represented as files) in `/dev/serial/by-id` unless you specify the serial port with `-p`.  If any of the devices listed have filenames that contain any of these strings, then the script will automatically select and use that cable to communicate with the radio:
+		If you use the second method, the script will look for USB-serial cables (represented as files) in `/dev/serial/by-id` unless you specify the serial port with `-p`.  If any of the devices listed have filenames that contain any of these strings, then the script will automatically select and use that cable to communicate with the radio:
 
-		USB-Serial
+		- USB-Serial
+		- RT_Systems
+		- usb-FTDI
 
-		RT_Systems
+		If more than one cable matches, it'll use the last matching file name alphabetically.
 
-		usb-FTDI
+		To view the list of files that represent the USB-serial cables, open a terminal and run this command:
 
-If more than one cable matches, it'll use the last matching file name alphabetically.
-
-To view the list of files that represent the USB-serial cables, open a terminal and run this command:
-
-	ls -al /dev/serial/by-id
+			ls -al /dev/serial/by-id
 	
 
 ### Notes
 
-You can optionally supply the serial port used to connect to your radio using the `-p PORT` argument.  __This is used ONLY if `710.sh` cannot contact `710.py` via XML-RPC__. For example:
+You can optionally supply the serial port used to connect to your radio using the `-p PORT` argument.  __This is used ONLY if `710.sh` cannot contact `710.py` via XML-RPC__. 
+
+For example:
 
 	710.sh -p /dev/ttyUSB0 set timeout 3
 
-Alternatively, you optionally supply a string to grep (search) for in `/dev/serial/by-id` to determine the serial port used to connect to your radio using the `-s PORTSTRING` argument.  For example:
+Alternatively, you can supply a string to grep (search) for in `/dev/serial/by-id` to determine the serial port used to connect to your radio using the `-s PORTSTRING` argument.  
+
+For example:
 
 	710.sh -s RT_Systems get info
 
 If a port is supplied using `-p PORT`, it will take precedence over a string supplied by `-s PORTSTRING`."
 
-If you connect more than one serial cable and the string description for those cables contain a match of any of the strings listed above you __MUST__ use either the `-p` or `-s` options to tell the cables apart apart.
+If you connect more than one serial cable and the string description for those cables contain a match of any of the strings listed above you __MUST__ use either the `-p` or `-s` options to tell the cables apart apart. See the optional `udev` instructions above for a better way to identify your serial cable(s).
 
 In the following example, 2 USB-serial cables are attached to the Pi:
 
@@ -273,3 +344,4 @@ To use the cable with `USB-Serial` in the name:
 	710.sh -s USB-serial get info
 	
 When you use the `-s` option, make sure you use a search string that's unique to the cable you want to use.
+

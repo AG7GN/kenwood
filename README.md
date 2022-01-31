@@ -233,7 +233,7 @@ Installing these scripts as per the directions above does not automatically crea
 
 	- Change the `Exec=` line to add/remove/modify arguments for your particular serial port/speed. Omit the `--small` if you want to run the GUI in regular size. 
 	
-		If you want GPIO PTT control via XML-RPC, also specify `-r left` or `-r right` for the left or right radios respectively. This is only needed if you want to control PTT via XML-RPC calls, but it doesn't hurt to include it anyway.
+		If you want GPIO PTT control via XML-RPC, also specify `-r left` or `-r right` for the left or right radios respectively. This is only needed if you want to control PTT via XML-RPC.
 
 	- Change the `Name=` line to suit. This is the menu item name.
 

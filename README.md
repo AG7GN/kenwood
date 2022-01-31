@@ -94,11 +94,11 @@ This is optional but recommended and will ensure that your radio's cable always 
 
 		Bus 001 Device 011: ID 0403:6001 Future Technology Devices International, Ltd FT232 Serial (UART) IC
 
-	That's the cable you just plugged in. We'll create a `udev` rule so that this serial port has a consistent name, which we'll call `kenwoodTM-V71A`. you can use whatever name you like. Don't use any spaces in your name and keep it simple.
+	That's the cable you just plugged in. We'll create a `udev` rule so that this serial port has a consistent name, which we'll call `kenwoodTM-V71A`. You can use whatever name you like. Don't use any spaces in your name and keep it simple and memorable.
 	
-1. The rule will use the ID information to identify that particular cable. In this example, the ID is `0403:6001`. Your cable will very likely have a different ID. The ID consists of 2 parts, The part before the `:` is the `idVendor` and the part after the `:` is the `idProduct`.
+1. The rule will use the ID information to identify that particular cable. In this example, the ID is `0403:6001`. Your cable will likely have a different ID. The ID consists of 2 parts: The part before the `:` is the `idVendor` and the part after the `:` is the `idProduct`.
 
-1. To make the rule, enter these commands in the Terminal using the ATTR values for your cable (Note that after the 1st 2 commands, you'll get a `>` prompt):
+1. The rule is defined in a file in `/etc/udev/rules.d`. To make the rule file, enter these commands in the Terminal using the ATTR values for your cable and whatever name you've decided to use (Note that after the 1st 2 commands, you'll get a `>` prompt):
 
 		cat >99-kenwood.rules <<EOF
 		SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", SYMLINK+="kenwoodTM-V71A"
@@ -126,6 +126,73 @@ This is optional but recommended and will ensure that your radio's cable always 
 		lrwxrwxrwx 1 root root 7 Jan 30 16:15 /dev/kenwoodTM-V71A -> ttyUSB1
 
 1. From now on, your serial port will be called `/dev/kenwoodTM-V71A` even if you disconnect/reconnect the cable or reboot the Pi.
+
+### Distinguishing between cables with the same make/model
+
+__IMPORTANT:__ If you have 2 USB-Serial cables of the same make and model attached to your Pi, they'll both have the same idVendor and idProduct value. In that case you'll need to use additional or alternate criteria to tell them apart. These devices have a lot of attribute (ATTRS) values, so you might find that one of the ATTRS is a serial number of some sort. Here's how:
+
+1. Make sure your cable is plugged in to your Pi
+1. Identify the port you want to query (ex. `/dev/ttyUSB0`, `/dev/ttyUSB1`). In this example, we'll use the one we just set up: `/dev/KenwoodTM-V71A`:
+
+		pi@nexuspi4b-ag7gn:~ $ udevadm info -q property -n /dev/kenwoodTM-V71A
+		
+		DEVPATH=/devices/platform/scb/fd500000.pcie/pci0000:00/0000:00:00.0/0000:01:00.0/usb1/1-1/1-1.1/1-1.1:1.0/ttyUSB1/tty/ttyUSB1
+		DEVNAME=/dev/ttyUSB1
+		MAJOR=188
+		MINOR=1
+		SUBSYSTEM=tty
+		USEC_INITIALIZED=270367968798
+		ID_BUS=usb
+		ID_VENDOR_ID=0403
+		ID_MODEL_ID=6001
+		ID_PCI_CLASS_FROM_DATABASE=Serial bus controller
+		ID_PCI_SUBCLASS_FROM_DATABASE=USB controller
+		ID_PCI_INTERFACE_FROM_DATABASE=XHCI
+		ID_VENDOR_FROM_DATABASE=VIA Technologies, Inc.
+		ID_MODEL_FROM_DATABASE=VL805 USB 3.0 Host Controller
+		ID_PATH=platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.1:1.0
+		ID_PATH_TAG=platform-fd500000_pcie-pci-0000_01_00_0-usb-0_1_1_1_0
+		ID_VENDOR=FTDI
+		ID_VENDOR_ENC=FTDI
+		ID_MODEL=FT232R_USB_UART
+		ID_MODEL_ENC=FT232R\x20USB\x20UART
+		ID_REVISION=0600
+		ID_SERIAL=FTDI_FT232R_USB_UART_AI05SMCB
+		ID_SERIAL_SHORT=AI05SMCB
+		ID_TYPE=generic
+		ID_USB_INTERFACES=:ffffff:
+		ID_USB_INTERFACE_NUM=00
+		ID_USB_DRIVER=ftdi_sio
+		DEVLINKS=/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_AI05SMCB-if00-port0 /dev/kenwoodTM-V71A /dev/serial/by-path/platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.1:1.0-port0
+		TAGS=:systemd:
+		CURRENT_TAGS=:systemd:
+
+1. Note that there are 2 serial number items in the property list:
+
+		ID_SERIAL=FTDI_FT232R_USB_UART_AI05SMCB
+		ID_SERIAL_SHORT=AI05SMCB
+
+	__NOTE:__ Not all USB-serial cables have serial numbers or another way to distinguish one cable from another of the same make/model. In that case, you'll have to use a cable from a different vendor so you can tell them apart.
+
+1. Now, find out the actual ATTRS name for the serial number. We'll use the `ID_SERIAL_SHORT` item, which is `AI05SMCB` in this example. Run `udevadm info -q property -n /dev/kenwoodTM-V71A --attribute-walk | grep AI05SMCB`:
+
+		pi@nexuspi4b-ag7gn:~ $ udevadm info -q property -n /dev/kenwoodTM-V71A --attribute-walk | grep AI05SMCB
+		
+		ATTRS{serial}=="AI05SMCB"
+			 
+1. Now we can use that ATTR to distinguish between cables with the same make/model. Our current `/etc/udev/rules.d/99-kenwood.rules` looks like this:
+
+		SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", SYMLINK+="kenwoodTM-V71A"
+
+	Modify that file (open it in a text editor as `sudo`) and add our new serial attribute so it looks like this:
+	
+		SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", ATTRS{serial}=="AI05SMCB", SYMLINK+="kenwoodTM-V71A"
+	
+1. Save the file, exit your editor and run:
+
+		sudo udevadm control --reload
+		
+1. Unplug and re-plug in your cable.
 
 
 ## Operating `710.py`

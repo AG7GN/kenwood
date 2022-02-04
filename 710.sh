@@ -114,7 +114,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 5.3.2
+#-    version         ${SCRIPT_NAME} 5.3.3
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -837,8 +837,15 @@ case "$P3" in
 		PrintAIP $(GetSet "MU")
 		;;
    FREQ*) # Frequency
-		set_FREQ $P2
-		get_FREQ $P2
+      case "$P1" in
+         GET)
+				get_FREQ $P2
+            ;;
+         SET)
+				set_FREQ $P2
+				get_FREQ $P2
+            ;;
+		esac
       ;;
    MO*) # Mode
       if [[ $P1 == "SET" ]]

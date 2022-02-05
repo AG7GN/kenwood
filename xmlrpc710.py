@@ -205,9 +205,6 @@ class RigXMLRPC(object):
 
     def stop(self):
         self.rpc_server.shutdown()
-        # Kill any local client processes that have ESTABLISHED or
-        # CLOSE-WAIT TCP connections left over now that the server has
-        # been shut down.
         # Use psutil.net_connections to extract a list of PIDs for
         # local processes that have ESTABLISHED or CLOSE-WAIT TCP
         # connections left over now that the XML-RPC server has

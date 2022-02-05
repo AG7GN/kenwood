@@ -4,15 +4,22 @@ from xmlrpc.server import SimpleXMLRPCServer
 from xmlrpc.server import SimpleXMLRPCRequestHandler
 from common710 import within_frequency_limits
 from common710 import modulation_dict
+import psutil
+from os import kill
+from signal import SIGTERM
 
 __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2022, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
+_STATES = ('CLOSE_WAIT', 'ESTABLISHED')
+# Don't kill local processes in _EXCLUDED_CLIENTS when the server
+# shuts down.
+_EXCLUDED_CLIENTS = ('fldigi',)
 
 
 class SimpleThreadedXMLRPCServer(ThreadingMixIn, SimpleXMLRPCServer):
@@ -198,3 +205,30 @@ class RigXMLRPC(object):
 
     def stop(self):
         self.rpc_server.shutdown()
+        # Kill any local client processes that have ESTABLISHED or
+        # CLOSE-WAIT TCP connections left over now that the server has
+        # been shut down.
+        # Use psutil.net_connections to extract a list of PIDs for
+        # local processes that have ESTABLISHED or CLOSE-WAIT TCP
+        # connections left over now that the XML-RPC server has
+        # been shut down. From that list, kill those client processes
+        # that are not in the _EXCLUDED_CLIENTS list.
+        leftover_pids = [tcp_conn[-1] for tcp_conn in
+                         (psutil.net_connections(kind='tcp'))
+                         if not set(_STATES).isdisjoint(tcp_conn)
+                         and (tcp_conn[-1] is not None)
+                         and (getattr(tcp_conn[4], 'port') == self.port)]
+        for pid in leftover_pids:
+            try:
+                with open(f"/proc/{pid}/comm", 'r') as f:
+                    # Get the name of the client process
+                    client_name = f.read().rstrip()
+            except IOError as _:
+                pass
+            else:
+                # Don't kill clients listed in _EXCLUDED_CLIENTS
+                if client_name not in _EXCLUDED_CLIENTS:
+                    try:
+                        kill(pid, SIGTERM)
+                    except SystemError as _:
+                        pass

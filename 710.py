@@ -24,7 +24,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2022, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "2.0.3"
+__version__ = "2.0.4"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -130,29 +130,31 @@ def controller():
             except IndexError as _:
                 print_error(f"Error communicating with radio on {arg_info.port}")
                 running = False
-                break
-            if rig_dictionary is None:
-                running = False
-                break
+                # break
+            # if rig_dictionary['speed'] is None:
+            #     running = False
+            #     break
             else:
                 try:
                     gui.update_display(rig_dictionary)
                 except UpdateDisplayException as _:
                     print_error(f"Error communicating with radio on {arg_info.port}")
                     running = False
-                    break
-                if root:
-                    root.update()
+                    # break
+                else:
+                    if root:
+                        root.update()
         else:
             job = cmd_queue.get()  # Get job from queue
             if job[0] == 'quit':
-                break
-            msg_queue.put(['INFO', f"{stamp()}: Queued {job}"])
-            result = rig.run_job(job, msg_queue)
-            if not result:
                 running = False
-            else:
+                # break
+            msg_queue.put(['INFO', f"{stamp()}: Queued {job}"])
+            # result = rig.run_job(job, msg_queue)
+            if rig.run_job(job, msg_queue):
                 msg_queue.put(['INFO', f"{stamp()}: Finished {job}"])
+            else:
+                running = False
             cmd_queue.task_done()
     print(f"{stamp()}: Controller stopped")
     cleanup()
@@ -276,9 +278,11 @@ if __name__ == "__main__":
         if not query_answer:
             # print(f"{stamp()}: ERROR: Could not communicate with radio.")
             print_error(f"Could not communicate with "
-                        f"radio on {arg_info.port}")
+                        f"radio on {arg_info.port} @ {arg_info.baudrate}")
             sys.exit(1)
-    print(f"{stamp()}: Found {query_answer[1]}", file=sys.stderr)
+    print(f"{stamp()}: Found {query_answer[1]} on {arg_info.port} @ "
+          f"{arg_info.baudrate}",
+          file=sys.stderr)
     rig.set_id(query_answer[1])
 
     # Set up XML-RPC server and corresponding thread.
@@ -301,7 +305,8 @@ if __name__ == "__main__":
                   version=__version__,
                   cmd_queue=cmd_queue, msg_queue=msg_queue,
                   size=size, initial_location=loc)
-    msg_queue.put(['INFO', f"{stamp()}: Found {query_answer[1]}"])
+    msg_queue.put(['INFO', f"{stamp()}: Found {query_answer[1]} on "
+                           f"{arg_info.port} @ {arg_info.baudrate}"])
     controller_thread = Thread(target=controller)
     controller_thread.setDaemon(True)
     controller_thread.start()

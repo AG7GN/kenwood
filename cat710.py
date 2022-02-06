@@ -67,7 +67,7 @@ class Cat(object):
             self.state['gpio'] = None
             self.ptt = None
         else:
-            self.state['gpio'] = gpio_ptt_dict[self.nexus_side]
+            self.state['gpio'] = GPIO_PTT_DICT[self.nexus_side]
             self.ptt = OutputDevice(self.state['gpio'],
                                     active_high=True,
                                     initial_value=False)
@@ -108,7 +108,6 @@ class Cat(object):
         followed by the radio's answer: a comma separated string.
         See https://github.com/LA3QMA/TM-V71_TM-D710-Kenwood for
         details.
-
         :param request: String containing CAT command to send
         :return: Tuple containing radio's reply to the command. Returns
                 empty tuple if radio returns '?' (indicating an unknown
@@ -154,7 +153,7 @@ class Cat(object):
         except QueryException as error:
             print(f"{stamp()}: No response from radio: {error}",
                   file=sys.stderr)
-            return None
+            return []
         else:
             return result
 
@@ -177,48 +176,48 @@ class Cat(object):
 
         def common_elements(_mode_str: str):
             try:
-                if state_dict['map'][result[6]] == "ON":
+                if STATE_DICT['map'][result[6]] == "ON":
                     # Tone is set
                     t = "Tone"
-                    tf = tone_frequency_dict[t]['map'][result[9]]
-                elif state_dict['map'][result[7]] == "ON":
+                    tf = TONE_FREQUENCY_DICT[t]['map'][result[9]]
+                elif STATE_DICT['map'][result[7]] == "ON":
                     # CTCSS is set
                     t = "CTCSS"
-                    tf = tone_frequency_dict[t]['map'][result[10]]
-                elif state_dict['map'][result[8]] == "ON":
+                    tf = TONE_FREQUENCY_DICT[t]['map'][result[10]]
+                elif STATE_DICT['map'][result[8]] == "ON":
                     # DCS is set
                     t = "DCS"
-                    tf = tone_frequency_dict[t]['map'][result[11]]
+                    tf = TONE_FREQUENCY_DICT[t]['map'][result[11]]
                 else:
                     t = "No Tone"
-                    tf = tone_frequency_dict[t]
+                    tf = TONE_FREQUENCY_DICT[t]
                 # Save tone to state dictionary
-                self.state[side_dict['map'][s]]['tone'] = t
-                self.state[side_dict['map'][s]]['tone_frequency'] = tf
+                self.state[SIDE_DICT['map'][s]]['tone'] = t
+                self.state[SIDE_DICT['map'][s]]['tone_frequency'] = tf
                 # Save shift to state dictionary
-                self.state[side_dict['map'][s]]['shift'] = \
-                    shift_dict['map'][result[4]]
+                self.state[SIDE_DICT['map'][s]]['shift'] = \
+                    SHIFT_DICT['map'][result[4]]
                 # Save reverse status to state dictionary
-                self.state[side_dict['map'][s]]['reverse'] = \
-                    '{}'.format(reverse_dict['map'][result[5]])
+                self.state[SIDE_DICT['map'][s]]['reverse'] = \
+                    '{}'.format(REVERSE_DICT['map'][result[5]])
                 # Save modulation to state dictionary
-                self.state[side_dict['map'][s]]['modulation'] = \
-                    '{}'.format(modulation_dict['map'][result[13]])
+                self.state[SIDE_DICT['map'][s]]['modulation'] = \
+                    '{}'.format(MODULATION_DICT['map'][result[13]])
                 # Save the mode to the state dictionary
-                self.state[side_dict['map'][s]]['mode'] = _mode_str
+                self.state[SIDE_DICT['map'][s]]['mode'] = _mode_str
                 # Save the RX step to state dictionary
-                self.state[side_dict['map'][s]]['step'] = \
-                    step_dict['map'][result[3]]
+                self.state[SIDE_DICT['map'][s]]['step'] = \
+                    STEP_DICT['map'][result[3]]
                 # Save the frequency to the state dictionary
-                self.state[side_dict['map'][s]]['frequency'] = \
+                self.state[SIDE_DICT['map'][s]]['frequency'] = \
                     "{:.3f}".format(int(result[2]) / 1000000)
             except IndexError as _:
                 raise
 
-        result = None
+        result = []
         result = self.handle_query(f"BC")
-        if result is None:
-            return None
+        if not result:
+            return {}
         try:
             self.state['A']['ctrl'] = 'CTRL' if result[1] == '0' else '   '
             self.state['B']['ctrl'] = 'CTRL' if result[1] == '1' else '   '
@@ -230,25 +229,25 @@ class Cat(object):
         for s in sides:  # '0' = A side, '1' = B side
             # Determine current mode (VFO, Memory, Call)
             result = self.handle_query(f"VM {s}")
-            if result is None:
-                return None
-            if mode_dict['map'][result[2]] == 'MR':
+            if not result:
+                return {}
+            if MODE_DICT['map'][result[2]] == 'MR':
                 # This side is in Memory mode
                 # Retrieve memory channel
                 result = self.handle_query(f"MR {s}")
-                if result is None:
-                    return None
+                if not result:
+                    return {}
                 ch_num_raw = result[2]  # Unformatted channel number
                 try:
                     # Save the channel number to the state dictionary
-                    self.state[side_dict['map'][s]]['ch_number'] = \
+                    self.state[SIDE_DICT['map'][s]]['ch_number'] = \
                         int(result[2])
                 except IndexError as _:
                     raise
                 # Retrieve state information for this memory channel
                 result = self.handle_query(f"FO {s}")
-                if result is None:
-                    return None
+                if not result:
+                    return {}
                 # print(f"{stamp()}: {result}", file=sys.stderr)
                 try:
                     common_elements('MR')
@@ -256,103 +255,103 @@ class Cat(object):
                     raise
                 # Retrieve the channel name
                 result = self.handle_query(f"MN {ch_num_raw}")
-                if result is None:
-                    return None
+                if not result:
+                    return {}
                 try:
                     if result[0] != 'N':
-                        self.state[side_dict['map'][s]]['ch_name'] = \
+                        self.state[SIDE_DICT['map'][s]]['ch_name'] = \
                             result[2]
                 except IndexError as _:
                     raise
             # else:
                 #     print(f"{stamp()}: ERROR: Nothing in memory",
                 #           file=sys.stderr)
-            elif mode_dict['map'][result[2]] == 'VFO':
+            elif MODE_DICT['map'][result[2]] == 'VFO':
                 # This side is in VFO mode. Retrieve FO data
                 result = self.handle_query(f"FO {s}")
-                if result is None:
-                    return None
+                if not result:
+                    return {}
                 try:
                     common_elements('VFO')
                 except IndexError as _:
                     raise
                 try:
-                    self.state[side_dict['map'][s]]['ch_number'] = '  '
-                    self.state[side_dict['map'][s]]['ch_name'] = '      '
+                    self.state[SIDE_DICT['map'][s]]['ch_number'] = '  '
+                    self.state[SIDE_DICT['map'][s]]['ch_name'] = '      '
                 except IndexError as _:
                     raise
-            elif mode_dict['map'][result[2]] == 'CALL':
+            elif MODE_DICT['map'][result[2]] == 'CALL':
                 # This side is in Call mode. Retrieve CC data
                 # result = self.handle_query(f"CC {s}")
                 result = self.handle_query(f"FO {s}")
-                if result is None:
-                    return None
+                if not result:
+                    return {}
                 try:
                     common_elements('CALL')
                 except IndexError as _:
                     raise
                 try:
-                    self.state[side_dict['map'][s]]['ch_number'] = '  '
-                    self.state[side_dict['map'][s]]['ch_name'] = '      '
+                    self.state[SIDE_DICT['map'][s]]['ch_number'] = '  '
+                    self.state[SIDE_DICT['map'][s]]['ch_name'] = '      '
                 except IndexError as _:
                     raise
-            elif mode_dict['map'][result[2]] == 'WX':
+            elif MODE_DICT['map'][result[2]] == 'WX':
                 # This side is in Call mode. Retrieve CC data
                 # result = self.handle_query(f"CC {s}")
                 result = self.handle_query(f"FO {s}")
-                if result is None:
-                    return None
+                if not result:
+                    return {}
                 try:
                     common_elements('WX')
                 except IndexError as _:
                     raise
                 try:
-                    self.state[side_dict['map'][s]]['ch_number'] = '  '
-                    self.state[side_dict['map'][s]]['ch_name'] = '      '
+                    self.state[SIDE_DICT['map'][s]]['ch_number'] = '  '
+                    self.state[SIDE_DICT['map'][s]]['ch_name'] = '      '
                 except IndexError as _:
                     raise
             else:
                 pass
             # Power
             result = self.handle_query(f"PC {s}")
-            if result is None:
-                return None
+            if not result:
+                return {}
             try:
-                self.state[side_dict['map'][s]]['power'] = power_dict['map'][result[2]]
+                self.state[SIDE_DICT['map'][s]]['power'] = POWER_DICT['map'][result[2]]
             except IndexError as _:
                 raise
         # Data side
         result = self.handle_query(f"MU")
-        if result is None:
-            return None
+        if not result:
+            return {}
         try:
             if result[38] in ['0', '1']:
-                self.state['data_side'] = side_dict['map'][result[38]]
+                self.state['data_side'] = SIDE_DICT['map'][result[38]]
             else:
                 self.state['data_side'] = None
-            self.state[side_dict['map']['0']]['data'] = \
+            self.state[SIDE_DICT['map']['0']]['data'] = \
                 'D' if result[38] == '0' else \
                 'D-TX' if result[38] == '2' else \
                 'D-RX' if result[38] == '3' else \
                 ' '
-            self.state[side_dict['map']['1']]['data'] = \
+            self.state[SIDE_DICT['map']['1']]['data'] = \
                 'D' if result[38] == '1' else \
                 'D-RX' if result[38] == '2' else \
                 'D-TX' if result[38] == '3' else \
                 ' '
-            self.state['speed'] = data_speed_dict['map'][result[39]]
-            self.state['timeout'] = timeout_dict['map'][result[16]]
-            self.state['vhf_aip'] = state_dict['map'][result[11]]
-            self.state['uhf_aip'] = state_dict['map'][result[12]]
-            self.state['backlight'] = backlight_dict['map'][result[28]]
+            self.state['speed'] = DATA_SPEED_DICT['map'][result[39]]
+            self.state['timeout'] = TIMEOUT_DICT['map'][result[16]]
+            self.state['vhf_aip'] = STATE_DICT['map'][result[11]]
+            self.state['uhf_aip'] = STATE_DICT['map'][result[12]]
+            self.state['backlight'] = BACKLIGHT_DICT['map'][result[28]]
         except IndexError as _:
             raise
         # Lock state
         result = self.handle_query(f"LK")
-        if result is None:
-            return None
+        if not result:
+            return {}
         try:
-            self.state['lock'] = lock_dict['map'][result[1]]
+            self.state['lock'] = LOCK_DICT['map'][result[1]]
         except IndexError as _:
             raise
         return self.state
@@ -364,20 +363,6 @@ class Cat(object):
         """
         return self.state
 
-    # def run_command(self, command: str) -> str:
-    #     """
-    #     Adds command to cmd_queue. Monitors ans_queue for the result
-    #     :return: String containing command results
-    #     """
-    #     self.ans_queue.join()
-    #     self.cmd_queue.put(['command', command])
-    #     result = None
-    #     while result is None:
-    #         if self.ans_queue.not_empty:
-    #             result = self.ans_queue.get()
-    #             self.ans_queue.task_done()
-    #     return result
-
     def run_job(self, job: list, msg_queue: Queue) -> list:
         """
         Accepts a job list and executes the corresponding Kenwood
@@ -386,23 +371,30 @@ class Cat(object):
         :param msg_queue: Queue to which to send status messages
         :return: The job that was sent as an argument, or if the job
         was a 'command', the result of the command will be the second
-        list element. Returns None if the job could not be completed.
+        list element. Returns empty list if the job could not be
+        completed.
         """
 
         def get_arg_list() -> list:
+            """
+            Some CAT commands require interim radio queries to construct
+            the user's query.
+            :return: List containing query results, or empty list if
+            the query failed.
+            """
             if len(job) > 1 and job[1] in ('A', 'B'):
-                _arg = side_dict['inv'][job[1]]
+                _arg = SIDE_DICT['inv'][job[1]]
                 _answer = self.handle_query(f"VM {_arg}")
-                if _answer is None:
-                    return None
+                if not _answer:
+                    return []
                 _, _, _m = list(_answer)
                 if _m == '0':  # vfo
                     cmd = 'FO'
                 elif _m == '1':  # mr
                     cmd = 'ME'
                     _answer = self.handle_query(f"MR {_arg}")
-                    if _answer is None:
-                        return None
+                    if not _answer:
+                        return []
                     _arg = _answer[2]  # Get the channel number
                 elif _m == '2':  # call
                     cmd = 'CC'
@@ -410,50 +402,51 @@ class Cat(object):
                     cmd = 'VM'
                     _arg = f"{_arg},3"
                 _answer = self.handle_query(f"{cmd} {_arg}")
-                if _answer is None:
-                    return None
+                if not _answer:
+                    return []
                 else:
                     return list(_answer)
             else:
-                return None
+                return []
+
         if job[0] in ('mode',):  # 'VM' command - mode change requested
-            arg = f"VM {side_dict['inv'][job[1]]},{job[2]}"
-            if self.handle_query(arg) is None:
-                return None
+            arg = f"VM {SIDE_DICT['inv'][job[1]]},{job[2]}"
+            if not self.handle_query(arg):
+                return []
         elif job[0] in ('ptt', 'ctrl'):  # 'BC' command
             answer = self.handle_query("BC")
-            if answer is None:
-                return None
+            if not answer:
+                return []
             ctrl = answer[1]
             ptt = answer[2]
             if job[0] == 'ptt':
-                arg = f"BC {ctrl},{side_dict['inv'][job[1]]}"
+                arg = f"BC {ctrl},{SIDE_DICT['inv'][job[1]]}"
             else:  # Setting ctrl
-                arg = f"BC {side_dict['inv'][job[1]]},{ptt}"
-            if self.handle_query(arg) is None:
-                return None
+                arg = f"BC {SIDE_DICT['inv'][job[1]]},{ptt}"
+            if not self.handle_query(arg):
+                return []
         elif job[0] in ('power',):  # 'PC' command
-            arg = f"PC {side_dict['inv'][job[1]]},{job[2]}"
-            if self.handle_query(arg) is None:
-                return None
+            arg = f"PC {SIDE_DICT['inv'][job[1]]},{job[2]}"
+            if not self.handle_query(arg):
+                return []
         elif job[0] in ('lock',):
             answer = self.handle_query("LK")
-            if answer is None:
-                return None
+            if not answer:
+                return []
             arg = "LK {}".format('1' if answer[1] == '0' else '0')
-            if self.handle_query(arg) is None:
-                return None
+            if not self.handle_query(arg):
+                return []
         elif job[0] in ('frequency', 'modulation', 'step',
                         'tone', 'tone_frequency', 'rev'):
             arg_list = get_arg_list()
-            if arg_list is None or arg_list[0] == 'N':
-                return None
+            if not arg_list or arg_list[0] == 'N':
+                return []
             if arg_list[0] not in ['CC', 'FO', 'ME']:
                 # WX or unknown mode. Skip this job.
                 job[0] = None
             if job[0] in ('tone', 'tone_frequency'):
                 same_type = False
-                for key, value in tone_type_dict['map'].items():
+                for key, value in TONE_TYPE_DICT['map'].items():
                     if arg_list[int(key)] == '1':
                         # Found the current tone type
                         current_type = key
@@ -469,7 +462,7 @@ class Cat(object):
                     # Need to change the tone type.
                     # Set all tones to off for now...
                     # t is tone freq., c is CTCSS freq., d is DCS freq.
-                    _, t, c, d = list(tone_type_dict['map'].keys())
+                    _, t, c, d = list(TONE_TYPE_DICT['map'].keys())
                     arg_list[int(t)] = '0'
                     arg_list[int(c)] = '0'
                     arg_list[int(d)] = '0'
@@ -483,7 +476,7 @@ class Cat(object):
                 # elements up in the list from the tone type
                 if job[0] == 'tone_frequency' and current_type != '0':
                     arg_list[int(current_type) + 3] = \
-                        tone_frequency_dict[current_type]['inv'][job[2]]
+                        TONE_FREQUENCY_DICT[current_type]['inv'][job[2]]
             if job[0] == 'frequency':
                 arg_list[2] = f"{int(job[2] * 1000000):010d}"
             if job[0] == 'modulation':
@@ -523,14 +516,14 @@ class Cat(object):
                                f"{stamp()}: WARNING: Modifying "
                                f"memory {int(arg_list[1])}!"])
             if job[0] is not None:
-                if self.handle_query(f"{arg_list[0]} {','.join(arg_list[1:])}") is None:
-                    return None
+                if not self.handle_query(f"{arg_list[0]} {','.join(arg_list[1:])}"):
+                    return []
         elif job[0] in ('beep', 'vhf_aip', 'uhf_aip', 'speed',
                         'backlight', 'apo', 'data', 'timeout'):
             # Get the current menu state
             mu = self.handle_query('MU')
-            if mu is None:
-                return None
+            if not mu:
+                return []
             mu_list = list(mu)
 
             if job[0] == 'backlight':
@@ -538,8 +531,8 @@ class Cat(object):
                     desired_color = 'amber'
                 else:
                     desired_color = 'green'
-                mu_list[menu_dict['backlight']['index']] = \
-                    menu_dict['backlight']['values'][desired_color]
+                mu_list[MENU_DICT['backlight']['index']] = \
+                    MENU_DICT['backlight']['values'][desired_color]
             elif job[0] == 'data':
                 mu_list[38] = job[1]
             elif job[0] == 'speed':
@@ -553,15 +546,15 @@ class Cat(object):
             else:
                 pass
             arg = f"MU {','.join(mu_list[1:])}"
-            if self.handle_query(arg) is None:
-                return None
+            if not self.handle_query(arg):
+                return []
             # Workaround for screen refresh bug: Move CTRL to
             # opposite side and back to refresh screen so that
             # radio state updates correctly.
             if job[0] == 'data':
                 bc = self.handle_query('BC')
-                if bc is None:
-                    return None
+                if not bc:
+                    return []
                 _error = False
                 for _ in range(2):
                     if bc[1] == '0':
@@ -569,24 +562,24 @@ class Cat(object):
                     else:
                         ctrl_temp = '0'
                     bc = self.handle_query(f"BC {ctrl_temp},{bc[2]}")
-                    if bc is None:
+                    if not bc:
                         _error = True
-                        return None
+                        # return []
                 if _error:
-                    return None
+                    return []
         elif job[0] in ('up', 'down'):
             arg_list = get_arg_list()  # Get the channel data for current mode
-            if arg_list is None or arg_list[0] == 'N':
-                return None
+            if not arg_list or arg_list[0] == 'N':
+                return []
             channel = 0
             if arg_list[0] == 'FO':
                 frequency = int(arg_list[2])
-                step = int(step_dict['map'][arg_list[3]]) * 1000
+                step = int(STEP_DICT['map'][arg_list[3]]) * 1000
                 if job[0] == 'down':
                     step *= -1
                 frequency += step
-                _min = float(frequency_limits[job[1]]['min']) * 1000000
-                _max = float(frequency_limits[job[1]]['max']) * 1000000
+                _min = float(FREQUENCY_LIMITS[job[1]]['min']) * 1000000
+                _max = float(FREQUENCY_LIMITS[job[1]]['max']) * 1000000
                 # print(f"min = {_min}, max = {_min}")
                 if _min <= frequency <= _max:
                     arg_list[2] = f"{frequency:010d}"
@@ -596,8 +589,8 @@ class Cat(object):
                 if job[0] == 'down':
                     step *= -1
                 channel += step
-                _min = memory_limits['min']
-                _max = memory_limits['max']
+                _min = MEMORY_LIMITS['min']
+                _max = MEMORY_LIMITS['max']
                 if _min <= channel <= _max:
                     arg_list.clear()
                     arg_list = ['MR', '0' if job[1] == 'A' else '1',
@@ -606,21 +599,21 @@ class Cat(object):
                 pass
             arg = f"{arg_list[0]} {','.join(arg_list[1:])}"
             _ans = self.handle_query(arg)
-            if _ans is None:
-                return None
+            if not _ans:
+                return []
             elif arg_list[0] == 'MR' and _ans[0] == 'N':
                 msg_queue.put(['ERROR',
                                f"{stamp()}: Memory "
                                f"{channel} is empty"])
         elif job[0] in ('ch_number',):
             arg_list = get_arg_list()  # Get the channel data for current mode
-            if arg_list is None or arg_list[0] == 'N':
-                return None
+            if not arg_list or arg_list[0] == 'N':
+                return []
             if arg_list[0] == 'ME':
                 arg = f"MR {'0' if job[1] == 'A' else '1'},{job[2]}"
                 _ans = self.handle_query(arg)
-                if _ans is None:
-                    return None
+                if not _ans:
+                    return []
                 elif _ans[0] == 'N':
                     msg_queue.put(['ERROR',
                                    f"{stamp()}: Memory "
@@ -630,14 +623,14 @@ class Cat(object):
                 arg = "UP"
             else:
                 arg = "DW"
-            if self.handle_query(arg) is None:
-                return None
+            if not self.handle_query(arg):
+                return []
         elif job[0] == 'command':
             # Wait for reply_queue to empty before accepting command.
             self.reply_queue.join()
             result = self.handle_query(job[1])
-            if result is None:
-                return None
+            if not result:
+                return []
             else:
                 self.reply_queue.put(result)
         else:

@@ -4,23 +4,24 @@ from tkinter import simpledialog
 from tkinter import ttk
 from tkinter import scrolledtext
 from common710 import stamp
-from common710 import frequency_limits
-from common710 import memory_limits
-from common710 import tone_type_dict
-from common710 import tone_frequency_dict
-from common710 import dcs_frequency_dict
-from common710 import mode_dict
-from common710 import power_dict
-from common710 import modulation_dict
-from common710 import step_dict
-from common710 import data_speed_dict
-from common710 import timeout_dict
+from common710 import FREQUENCY_LIMITS
+from common710 import MEMORY_LIMITS
+from common710 import TONE_TYPE_DICT
+from common710 import TONE_FREQUENCY_DICT
+from common710 import DCS_FREQUENCY_DICT
+from common710 import MODE_DICT
+from common710 import POWER_DICT
+from common710 import MODULATION_DICT
+from common710 import STEP_DICT
+from common710 import DATA_SPEED_DICT
+from common710 import TIMEOUT_DICT
+from common710 import UpdateDisplayException
 
 __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2022, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -376,8 +377,8 @@ class Display(object):
                            f"side {s}",
                     title=f"{s} side frequency",
                     initialvalue=float(self.screen_label[s][k].cget('text')),
-                    minvalue=frequency_limits[s]['min'],
-                    maxvalue=frequency_limits[s]['max'])
+                    minvalue=FREQUENCY_LIMITS[s]['min'],
+                    maxvalue=FREQUENCY_LIMITS[s]['max'])
             if user_input is not None:
                 self.cmd_q.put([k, s, user_input])
         elif k == 'ch_number':
@@ -388,8 +389,8 @@ class Display(object):
                                f"side {s}",
                         title=f"{s} side Frequency",
                         initialvalue=int(self.screen_label[s][k].cget('text')),
-                        minvalue=memory_limits['min'],
-                        maxvalue=memory_limits['max'])
+                        minvalue=MEMORY_LIMITS['min'],
+                        maxvalue=MEMORY_LIMITS['max'])
                 if user_input is not None:
                     self.cmd_q.put([k, s, f"{int(user_input):03d}"])
             else:
@@ -400,16 +401,16 @@ class Display(object):
                        title=f"  Side {s} Tone Type  ",
                        label=k, side=s,
                        font=self._default_font,
-                       initial_value=tone_type_dict['inv'][self.screen_label[s][k].cget('text')],
-                       content=tone_type_dict['inv'],
+                       initial_value=TONE_TYPE_DICT['inv'][self.screen_label[s][k].cget('text')],
+                       content=TONE_TYPE_DICT['inv'],
                        job_q=self.cmd_q)
         elif k == 'tone_frequency':
             # We need to know which tone frequencies to present to user
             tone_type = self.screen_label[s]['tone'].cget('text')
             if tone_type in ('Tone', 'CTCSS'):
-                content = list(tone_frequency_dict[tone_type]['map'].values())
+                content = list(TONE_FREQUENCY_DICT[tone_type]['map'].values())
             elif tone_type == 'DCS':
-                content = list(dcs_frequency_dict['map'].values())
+                content = list(DCS_FREQUENCY_DICT['map'].values())
             else:  # No tones in use
                 content = None
             if content is not None:
@@ -417,48 +418,48 @@ class Display(object):
                            title=f"  Side {s} Tone (Hz)  ",
                            label=k, side=s,
                            font=self._default_font,
-                           content=list(tone_frequency_dict[tone_type]['map'].values()),
+                           content=list(TONE_FREQUENCY_DICT[tone_type]['map'].values()),
                            job_q=self.cmd_q)
         elif k == 'mode':
             RadioPopup(widget=self.screen_label[s][k],
                        title=f"    Side {s} Mode     ",
                        label=k, side=s,
                        font=self._default_font,
-                       initial_value=mode_dict['inv'][self.screen_label[s][k].cget('text')],
-                       content=mode_dict['inv'],
+                       initial_value=MODE_DICT['inv'][self.screen_label[s][k].cget('text')],
+                       content=MODE_DICT['inv'],
                        job_q=self.cmd_q)
         elif k == 'power':
             RadioPopup(widget=self.screen_label[s][k],
                        title=f"   Side {s} TX Power  ",
                        label=k, side=s,
                        font=self._default_font,
-                       initial_value=power_dict['inv'][self.screen_label[s][k].cget('text')],
-                       content=power_dict['inv'],
+                       initial_value=POWER_DICT['inv'][self.screen_label[s][k].cget('text')],
+                       content=POWER_DICT['inv'],
                        job_q=self.cmd_q)
         elif k == 'modulation':
             RadioPopup(widget=self.screen_label[s][k],
                        title=f"  Side {s} Modulation  ",
                        label=k, side=s,
                        font=self._default_font,
-                       initial_value=modulation_dict['inv'][self.screen_label[s][k].cget('text')],
-                       content=modulation_dict['inv'],
+                       initial_value=MODULATION_DICT['inv'][self.screen_label[s][k].cget('text')],
+                       content=MODULATION_DICT['inv'],
                        job_q=self.cmd_q)
         elif k == 'step':
             RadioPopup(widget=self.screen_label[s][k],
                        title=f"Side {s} Step Size (KHz)",
                        label=k, side=s,
                        font=self._default_font,
-                       initial_value=step_dict['inv'][self.screen_label[s][k].cget('text')],
-                       content=step_dict['inv'],
+                       initial_value=STEP_DICT['inv'][self.screen_label[s][k].cget('text')],
+                       content=STEP_DICT['inv'],
                        job_q=self.cmd_q)
         elif k == 'speed':
-            initial_value = data_speed_dict['inv'][self.speed_button.cget('text')]
+            initial_value = DATA_SPEED_DICT['inv'][self.speed_button.cget('text')]
             RadioPopup(widget=self.speed_button,
                        title=f"   Set data audio tap   ",
                        label=k,
                        initial_value=initial_value,
                        font=self._default_font,
-                       content=data_speed_dict['inv'],
+                       content=DATA_SPEED_DICT['inv'],
                        job_q=self.cmd_q)
         elif k == 'timeout':
             current_timeout = re.sub("[^0-9]", "", self.timeout_button.cget('text'))
@@ -466,8 +467,8 @@ class Display(object):
                        title=f"  TX Timeout (minutes)  ",
                        label=k,
                        font=self._default_font,
-                       initial_value=timeout_dict['inv'][current_timeout],
-                       content=timeout_dict['inv'],
+                       initial_value=TIMEOUT_DICT['inv'][current_timeout],
+                       content=TIMEOUT_DICT['inv'],
                        job_q=self.cmd_q)
         elif k == 'data':
             if s == 'A':
@@ -499,27 +500,30 @@ class Display(object):
             self.bottom_btn_frame[side].config(background=self._screen_bg_color)
 
     def update_display(self, data: dict):
-        for s in ('A', 'B'):
-            for key in data[s]:
-                self.screen_label[s][key]. \
-                    config(text=data[s][key])
-                self.screen_label[s][key]. \
-                    pack(fill=tk.BOTH, expand=True)
-                self.screen_label[s][key].update()
-        if self.current_color != data['backlight']:
-            # Update state to current background color
-            self.change_bg(color=data['backlight'])
-            self.current_color = data['backlight']
-        self.timeout_button.config(text=f"TX Timeout {data['timeout']}")
-        self.timeout_button.update()
-        self.lock_button.config(text=f"Lock is {data['lock']}")
-        self.lock_button.update()
-        self.vhf_aip_button.config(text=f"VHF AIP is {data['vhf_aip']}")
-        self.vhf_aip_button.update()
-        self.uhf_aip_button.config(text=f"UHF AIP is {data['uhf_aip']}")
-        self.uhf_aip_button.update()
-        self.speed_button.config(text=f"{data['speed']}")
-        self.speed_button.update()
+        try:
+            for s in ('A', 'B'):
+                for key in data[s]:
+                    self.screen_label[s][key]. \
+                        config(text=data[s][key])
+                    self.screen_label[s][key]. \
+                        pack(fill=tk.BOTH, expand=True)
+                    self.screen_label[s][key].update()
+            if self.current_color != data['backlight']:
+                # Update state to current background color
+                self.change_bg(color=data['backlight'])
+                self.current_color = data['backlight']
+            self.timeout_button.config(text=f"TX Timeout {data['timeout']}")
+            self.timeout_button.update()
+            self.lock_button.config(text=f"Lock is {data['lock']}")
+            self.lock_button.update()
+            self.vhf_aip_button.config(text=f"VHF AIP is {data['vhf_aip']}")
+            self.vhf_aip_button.update()
+            self.uhf_aip_button.config(text=f"UHF AIP is {data['uhf_aip']}")
+            self.uhf_aip_button.update()
+            self.speed_button.config(text=f"{data['speed']}")
+            self.speed_button.update()
+        except KeyError as _:
+            raise UpdateDisplayException("Error updating display")
 
 
 class MessageConsole(object):

@@ -1,39 +1,43 @@
 import datetime
 
 __all__ = [
-    'frequency_limits',
-    'frequency_band_limits',
-    'memory_limits',
-    'disp_mode_dict',
-    'side_dict',
-    'mode_dict',
-    'modulation_dict',
-    'tone_type_dict',
-    'dcs_frequency_dict',
-    'tone_frequency_dict',
-    'power_dict',
-    'state_dict',
-    'step_dict',
-    'shift_dict',
-    'data_band_dict',
-    'data_speed_dict',
-    'timeout_dict',
-    'apo_dict',
-    'reverse_dict',
-    'backlight_dict',
-    'tone_status_dict',
-    'ctcss_status_dict',
-    'dcs_status_dict',
-    'lock_dict',
-    'lock_out_dict',
-    'ptt_dict',
-    'ctrl_dict',
-    'menu_dict',
-    'gpio_ptt_dict',
+    'XMLRPC_PORT',
+    'FREQUENCY_LIMITS',
+    'FREQUENCY_BAND_LIMITS',
+    'MEMORY_LIMITS',
+    'DISP_MODE_DICT',
+    'SIDE_DICT',
+    'MODE_DICT',
+    'MODULATION_DICT',
+    'TONE_TYPE_DICT',
+    'DCS_FREQUENCY_DICT',
+    'TONE_FREQUENCY_DICT',
+    'POWER_DICT',
+    'STATE_DICT',
+    'STEP_DICT',
+    'SHIFT_DICT',
+    'DATA_BAND_DICT',
+    'DATA_SPEED_DICT',
+    'TIMEOUT_DICT',
+    'APO_DICT',
+    'REVERSE_DICT',
+    'BACKLIGHT_DICT',
+    'TONE_STATUS_DICT',
+    'CTCSS_STATUS_DICT',
+    'DCS_STATUS_DICT',
+    'LOCK_DICT',
+    'LOCK_OUT_DICT',
+    'PTT_DICT',
+    'CTRL_DICT',
+    'MENU_DICT',
+    'GPIO_PTT_DICT',
     'stamp',
     'within_frequency_limits',
-    'QueryException'
+    'QueryException',
+    'UpdateDisplayException'
 ]
+
+XMLRPC_PORT = 12345
 
 
 class QueryException(Exception):
@@ -42,7 +46,13 @@ class QueryException(Exception):
     """
 
 
-def stamp():
+class UpdateDisplayException(Exception):
+    """
+    Raise this exception when an error occurs updating the GUI display
+    """
+
+
+def stamp() -> str:
     """
     Returns string formatted with current time
     :return: String
@@ -51,8 +61,15 @@ def stamp():
 
 
 def within_frequency_limits(side: str, freq: float) -> bool:
-    _min = frequency_limits[side]['min']
-    _max = frequency_limits[side]['max']
+    """
+    Checks to see if a supplied frequency is within Kenwood defined
+    ranges for the supplied side (A or B) of the radio.
+    :param side: String containing A or B (the side of the radio)
+    :param freq: Float with frequency in Hz.
+    :return: True if within defined range, False otherwise
+    """
+    _min = FREQUENCY_LIMITS[side]['min']
+    _max = FREQUENCY_LIMITS[side]['max']
     if _min <= freq <= _max:
         return True
     else:
@@ -62,14 +79,13 @@ def within_frequency_limits(side: str, freq: float) -> bool:
 def same_frequency_band(freq1: int, freq2: int) -> bool:
     """
     Check if 2 frequencies in Hz are in the same amateur radio band.
-
     :param freq1:  1st Frequency in Hz
     :param freq2:  2nd Frequency in Hz
     :return: True if both freq1 and freq2 are in the same band,
     False otherwise
     """
     same_band = False
-    for band, freq_range in frequency_band_limits.items():
+    for band, freq_range in FREQUENCY_BAND_LIMITS.items():
         if freq1 in range(freq_range['min'], freq_range['max']) \
                 and freq2 in range(freq_range['min'],
                                    freq_range['max']):
@@ -78,32 +94,32 @@ def same_frequency_band(freq1: int, freq2: int) -> bool:
     return same_band
 
 
-gpio_ptt_dict = {'none': None, 'left': 12, 'right': 23}
-frequency_limits = {'A': {'min': 118.0, 'max': 524.0},
+GPIO_PTT_DICT = {'none': None, 'left': 12, 'right': 23}
+FREQUENCY_LIMITS = {'A': {'min': 118.0, 'max': 524.0},
                     'B': {'min': 136.0, 'max': 1300.0}}
-memory_limits = {'min': 0, 'max': 999}
-frequency_band_limits = {'118': {'min': 118000000, 'max': 136000000},
+MEMORY_LIMITS = {'min': 0, 'max': 999}
+FREQUENCY_BAND_LIMITS = {'118': {'min': 118000000, 'max': 136000000},
                          '144': {'min': 136000000, 'max': 200000000},
                          '220': {'min': 200000000, 'max': 300000000},
                          '440': {'min': 400000000, 'max': 524000000},
                          '1200': {'min': 800000000, 'max': 1300000000}}
 
 _disp_mode_dict = {'0': 'Dual', '1': 'Single'}
-disp_mode_dict = {'map': _disp_mode_dict,
+DISP_MODE_DICT = {'map': _disp_mode_dict,
                   'inv': {v: k for k, v in _disp_mode_dict.items()}}
 
 _side_dict = {'0': 'A', '1': 'B'}
-side_dict = {'map': _side_dict, 'inv': {v: k for k, v in _side_dict.items()}}
+SIDE_DICT = {'map': _side_dict, 'inv': {v: k for k, v in _side_dict.items()}}
 
 _mode_dict = {'0': 'VFO', '1': 'MR', '2': 'CALL', '3': 'WX'}
-mode_dict = {'map': _mode_dict, 'inv': {v: k for k, v in _mode_dict.items()}}
+MODE_DICT = {'map': _mode_dict, 'inv': {v: k for k, v in _mode_dict.items()}}
 
 _modulation_dict = {'0': "FM", '1': "NFM", '2': "AM"}
-modulation_dict = {'map': _modulation_dict,
+MODULATION_DICT = {'map': _modulation_dict,
                    'inv': {v: k for k, v in _modulation_dict.items()}}
 
 _tone_type_dict = {'0': "No Tone", '6': 'Tone', '7': 'CTCSS', '8': 'DCS'}
-tone_type_dict = {'map': _tone_type_dict,
+TONE_TYPE_DICT = {'map': _tone_type_dict,
                   'inv': {v: k for k, v in _tone_type_dict.items()}}
 
 _pll_frequency_dict = {'00': "67", '01': "69.3", '02': "71.9",
@@ -149,10 +165,10 @@ _dcs_frequency_dict = {'000': "23", '001': "25", '002': "26", '003': "31",
                        '092': "632", '093': "654", '094': "662", '095': "664",
                        '096': "703", '097': "712", '098': "723", '099': "731",
                        '100': "732", '101': "734", '102': "743", '103': "754"}
-dcs_frequency_dict = {'map': _dcs_frequency_dict,
+DCS_FREQUENCY_DICT = {'map': _dcs_frequency_dict,
                       'inv': {v: k for k, v in _dcs_frequency_dict.items()}}
 
-tone_frequency_dict = {'0': ' ',
+TONE_FREQUENCY_DICT = {'0': ' ',
                        'No Tone': ' ',
                        '6': {'map': _pll_frequency_dict,
                              'inv': {v: k for k, v in _pll_frequency_dict.items()}},
@@ -169,68 +185,68 @@ tone_frequency_dict = {'0': ' ',
                        }
 
 _power_dict = {'0': 'H', '1': 'M', '2': 'L'}
-power_dict = {'map': _power_dict,
+POWER_DICT = {'map': _power_dict,
               'inv': {v: k for k, v in _power_dict.items()}}
 
 _state_dict = {'0': "OFF", '1': "ON"}
-state_dict = {'map': _state_dict,
+STATE_DICT = {'map': _state_dict,
               'inv': {v: k for k, v in _state_dict.items()}}
 
 _step_dict = {'0': '5', '1': '6.25', '2': '8.33', '3': '10',
               '4': '12.5', '5': '15', '6': '20', '7': '25', '8': '30',
               '9': '50', 'A': '100'}
-step_dict = {'map': _step_dict,
+STEP_DICT = {'map': _step_dict,
              'inv': {v: k for k, v in _step_dict.items()}}
 
 _shift_dict = {'0': 'S', '1': '+', '2': '-'}
-shift_dict = {'map': _shift_dict,
+SHIFT_DICT = {'map': _shift_dict,
               'inv': {v: k for k, v in _shift_dict.items()}}
 
 _data_band_dict = {'0': 'A', '1': 'B', '2': 'TX A,RX B', '3': 'TX B,RX A'}
-data_band_dict = {'map': _data_band_dict,
+DATA_BAND_DICT = {'map': _data_band_dict,
                   'inv': {v: k for k, v in _data_band_dict.items()}}
 
 _data_speed_dict = {'0': '1200', '1': '9600'}
-data_speed_dict = {'map': _data_speed_dict,
+DATA_SPEED_DICT = {'map': _data_speed_dict,
                    'inv': {v: k for k, v in _data_speed_dict.items()}}
 
 _timeout_dict = {'0': '3', '1': '5', '2': '10'}
-timeout_dict = {'map': _timeout_dict,
+TIMEOUT_DICT = {'map': _timeout_dict,
                 'inv': {v: k for k, v in _timeout_dict.items()}}
 
 _apo_dict = {'0': 'off', '1': '30', '2': '60', '3': '90',
              '4': '120', '5': '180'}
-apo_dict = {'map': _apo_dict,
+APO_DICT = {'map': _apo_dict,
             'inv': {v: k for k, v in _apo_dict.items()}}
 
 _reverse_dict = {'0': ' ', '1': 'R'}
-reverse_dict = {'map': _reverse_dict,
+REVERSE_DICT = {'map': _reverse_dict,
                 'inv': {v: k for k, v in _reverse_dict.items()}}
 
 _backlight_dict = {'0': 'amber', '1': 'green'}
-backlight_dict = {'map': _backlight_dict,
+BACKLIGHT_DICT = {'map': _backlight_dict,
                   'inv': {v: k for k, v in _backlight_dict.items()}}
 _tone_status_dict = _state_dict
-tone_status_dict = state_dict
+TONE_STATUS_DICT = STATE_DICT
 _ctcss_status_dict = _state_dict
-ctcss_status_dict = state_dict
+CTCSS_STATUS_DICT = STATE_DICT
 _dcs_status_dict = _state_dict
-dcs_status_dict = state_dict
+DCS_STATUS_DICT = STATE_DICT
 _lock_dict = _state_dict
-lock_dict = state_dict
+LOCK_DICT = STATE_DICT
 _lock_out_dict = _state_dict
-lock_out_dict = state_dict
-ptt_dict = side_dict
-ctrl_dict = side_dict
+LOCK_OUT_DICT = STATE_DICT
+PTT_DICT = SIDE_DICT
+CTRL_DICT = SIDE_DICT
 
-menu_dict = {'beep': {'index': 1, 'values': state_dict['inv']},
+MENU_DICT = {'beep': {'index': 1, 'values': STATE_DICT['inv']},
              'vhf_aip': {'index': 11,
-                         'values': state_dict['inv']},
+                         'values': STATE_DICT['inv']},
              'uhf_aip': {'index': 12,
-                         'values': state_dict['inv']},
+                         'values': STATE_DICT['inv']},
              'backlight': {'index': 28, 'values': {'amber': '0',
                                                    'green': '1'}},
-             'apo': {'index': 37, 'values': apo_dict['inv']},
-             'data': {'index': 38, 'values': data_band_dict['inv']},
-             'speed': {'index': 39, 'values': data_speed_dict['inv']},
+             'apo': {'index': 37, 'values': APO_DICT['inv']},
+             'data': {'index': 38, 'values': DATA_BAND_DICT['inv']},
+             'speed': {'index': 39, 'values': DATA_SPEED_DICT['inv']},
              }

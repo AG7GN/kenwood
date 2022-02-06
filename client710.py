@@ -4,6 +4,7 @@ import sys
 import signal
 from socket import gaierror
 from socket import timeout
+from common710 import XMLRPC_PORT
 
 __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2022, Steve Magnuson"
@@ -13,11 +14,10 @@ __version__ = "1.0.0"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
-server_host = 'localhost'
-xmlrpc_port = 54321
+SERVER_HOST = 'localhost'
 
 
-def sigint_handler(sig, frame):
+def sigint_handler(_, __):
     sys.exit(0)
 
 
@@ -44,11 +44,11 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--version', action='version',
                         version=f"Version: {__version__}")
     parser.add_argument("-s", "--server",
-                        type=str, default=server_host,
+                        type=str, default=SERVER_HOST,
                         help="Hostname or IP address of XML-RPC server")
     parser.add_argument("-x", "--xmlport", type=int,
                         choices=range(1024, 65536),
-                        metavar="[1024-65535]", default=xmlrpc_port,
+                        metavar="[1024-65535]", default=XMLRPC_PORT,
                         help="TCP port on which XML-RPC server is listening.")
     parser.add_argument('command', metavar='command', type=str,
                         help="CAT command to send to 710.py")

@@ -9,9 +9,12 @@ import re
 import sys
 from queue import Queue
 from threading import Thread
+from time import time
 import signal
 import tkinter as tk
 from common710 import stamp
+from common710 import UpdateDisplayException
+from common710 import XMLRPC_PORT
 from cat710 import Cat
 from gui710 import Display
 from xmlrpc710 import RigXMLRPC
@@ -21,15 +24,14 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2022, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "2.0.2"
+__version__ = "2.0.3"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
+DEVICE = '/dev/ttyUSB0'
+BAUD = 57600
+EXIT_CODE = 0
 running = True
-device = '/dev/ttyUSB0'
-baud = 57600
-xmlrpc_port = 12345
-exit_code = 0
 
 
 def print_error(err: str):
@@ -58,7 +60,7 @@ def print_error(err: str):
             messagebox.showerror(title=f"{__title__} ERROR!", message=err)
 
 
-def sigint_handler(sig, frame):
+def sigint_handler(_, __):
     # print(f"{stamp()}: Signal handler caught {sig} {frame}")
     cleanup()
 
@@ -133,7 +135,12 @@ def controller():
                 running = False
                 break
             else:
-                gui.update_display(rig_dictionary)
+                try:
+                    gui.update_display(rig_dictionary)
+                except UpdateDisplayException as _:
+                    print_error(f"Error communicating with radio on {arg_info.port}")
+                    running = False
+                    break
                 if root:
                     root.update()
         else:
@@ -142,7 +149,7 @@ def controller():
                 break
             msg_queue.put(['INFO', f"{stamp()}: Queued {job}"])
             result = rig.run_job(job, msg_queue)
-            if result is None:
+            if not result:
                 running = False
             else:
                 msg_queue.put(['INFO', f"{stamp()}: Finished {job}"])
@@ -160,8 +167,8 @@ if __name__ == "__main__":
         #       file=sys.stderr)
         print_error(f"No serial ports found.")
         sys.exit(1)
-    if device not in port_list:
-        device = port_list[0]
+    if DEVICE not in port_list:
+        DEVICE = port_list[0]
     signal.signal(signal.SIGINT, sigint_handler)
     parser = argparse.ArgumentParser(prog=__title__,
                                      description=f"CAT control for Kenwood TM-D710G/TM-V71A",
@@ -170,12 +177,12 @@ if __name__ == "__main__":
                         version=f"Version: {__version__}")
     parser.add_argument("-p", "--port",
                         choices=port_list,
-                        type=str, default=device,
+                        type=str, default=DEVICE,
                         help="Serial port connected to radio")
     parser.add_argument("-b", "--baudrate",
                         choices=[300, 1200, 2400, 4800, 9600, 19200,
                                  38400, 57600],
-                        type=int, default=baud,
+                        type=int, default=BAUD,
                         help="Serial port speed (must match radio)")
     parser.add_argument("-s", "--small", action='store_true',
                         help="Smaller GUI window")
@@ -184,7 +191,7 @@ if __name__ == "__main__":
                              "of upper left corner of GUI.")
     parser.add_argument("-x", "--xmlport", type=int,
                         choices=range(1024, 65536),
-                        metavar="[1024-65535]", default=xmlrpc_port,
+                        metavar="[1024-65535]", default=XMLRPC_PORT,
                         help="TCP port on which to listen for "
                              "XML-RPC rig control calls from "
                              "clients such as Fldigi or Hamlib")
@@ -296,12 +303,19 @@ if __name__ == "__main__":
                   size=size, initial_location=loc)
     msg_queue.put(['INFO', f"{stamp()}: Found {query_answer[1]}"])
     controller_thread = Thread(target=controller)
+    controller_thread.setDaemon(True)
     controller_thread.start()
 
-    # Wait until radio is read and state dictionary to be populated
-    # before starting the XML-RPC server so we have something to serve
+    # Wait until radio is read and state dictionary populated
+    # before starting the XML-RPC server so that we have something to
+    # serve
+    time_current = time()
     while rig.get_dictionary()['speed'] is None:
-        pass
+        # Exit if we receive no data from radio in 5 seconds
+        if time() >= time_current + 5:
+            print_error(f"{stamp()}: No data received from radio in 5 "
+                        f"seconds")
+            sys.exit(1)
     print(f"{stamp()}: Starting XML-RPC server", file=sys.stderr)
     xmlrpc_thread.start()
 

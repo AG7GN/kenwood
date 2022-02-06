@@ -3,7 +3,7 @@ from socketserver import ThreadingMixIn
 from xmlrpc.server import SimpleXMLRPCServer
 from xmlrpc.server import SimpleXMLRPCRequestHandler
 from common710 import within_frequency_limits
-from common710 import modulation_dict
+from common710 import MODULATION_DICT
 import psutil
 from os import kill
 from signal import SIGTERM
@@ -68,7 +68,7 @@ class RigXMLRPC(object):
         self.rpc_server.register_function(get_xcvr, 'rig.get_xcvr')
 
         def get_modes():
-            return list(modulation_dict['map'].values())
+            return list(MODULATION_DICT['map'].values())
         self.rpc_server.register_function(get_modes, 'rig.get_modes')
 
         def get_bws():
@@ -86,7 +86,7 @@ class RigXMLRPC(object):
             rig_d = self.rig.get_dictionary()
             data_side = rig_d['data_side']
             self.cmd_queue.put(['modulation', data_side,
-                                modulation_dict['inv'][mode]])
+                                MODULATION_DICT['inv'][mode]])
             return rig_d[data_side]['modulation']
         self.rpc_server.register_function(set_mode, 'rig.set_mode')
         self.rpc_server.register_function(get_mode, 'rig.set_modeA')

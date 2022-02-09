@@ -7,57 +7,23 @@ import serial
 import os
 import re
 import sys
-from queue import Queue
-from threading import Thread
-from time import time
 import signal
 import tkinter as tk
 from common710 import stamp
-from common710 import UpdateDisplayException
 from common710 import XMLRPC_PORT
-from cat710 import Cat
-from gui710 import Display
-from xmlrpc710 import RigXMLRPC
+from controller710 import Controller
 
 __title__ = "710.py"
 __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2022, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "2.0.4"
+__version__ = "2.1.0"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
 DEVICE = '/dev/ttyUSB0'
 BAUD = 57600
-EXIT_CODE = 0
-running = True
-
-
-def print_error(err: str):
-    """
-    If X windows environment detected, pop up a window with
-    the message, otherwise print error to the console (stderr).
-    :param err: String containing error message
-    :return: None
-    """
-    if os.environ.get('DISPLAY', '') == '':
-        print(f"{stamp()}: {err}", file=sys.stderr)
-    else:
-        from tkinter import messagebox
-        try:
-            root.withdraw()
-        except NameError as _:
-            # root window hasn't been created yet. Make a new root
-            # for messagebox
-            error_root = tk.Tk()
-            error_root.withdraw()
-            messagebox.showerror(title=f"{__title__} ERROR!", message=err,
-                                 parent=error_root)
-            error_root.destroy()
-        else:
-            # Root window exists. Use it for messagebox.
-            messagebox.showerror(title=f"{__title__} ERROR!", message=err)
 
 
 def sigint_handler(_, __):
@@ -66,23 +32,8 @@ def sigint_handler(_, __):
 
 
 def cleanup():
-    print(f"{stamp()}: Starting cleanup")
-    global running
-    if running:
-        running = False
-    try:
-        controller_thread.join(timeout=2)
-    except RuntimeError as _:
-        print(f"{stamp()}: Controller thread stopped")
-    if xmlrpc_server:
-        print(f"{stamp()}: Stopping XML-RPC server")
-        xmlrpc_server.stop()
-        xmlrpc_thread.join(timeout=1)
-    ser.close()
-    print(f"{stamp()}: Cleanup completed")
-    if root:
-        root.quit()
-        root.update()
+    if controller:
+        controller.stop()
 
 
 def get_ports():
@@ -116,50 +67,6 @@ def get_ports():
     return ports
 
 
-def controller():
-    """
-    Updates the display while looking for and handling commands.
-    :return: None
-    """
-    global running
-    print(f"{stamp()}: Starting controller")
-    while running:
-        if cmd_queue.empty():
-            try:
-                rig_dictionary = rig.update_dictionary()
-            except IndexError as _:
-                print_error(f"Error communicating with radio on {arg_info.port}")
-                running = False
-                # break
-            # if rig_dictionary['speed'] is None:
-            #     running = False
-            #     break
-            else:
-                try:
-                    gui.update_display(rig_dictionary)
-                except UpdateDisplayException as _:
-                    print_error(f"Error communicating with radio on {arg_info.port}")
-                    running = False
-                    # break
-                else:
-                    if root:
-                        root.update()
-        else:
-            job = cmd_queue.get()  # Get job from queue
-            if job[0] == 'quit':
-                running = False
-                # break
-            msg_queue.put(['INFO', f"{stamp()}: Queued {job}"])
-            # result = rig.run_job(job, msg_queue)
-            if rig.run_job(job, msg_queue):
-                msg_queue.put(['INFO', f"{stamp()}: Finished {job}"])
-            else:
-                running = False
-            cmd_queue.task_done()
-    print(f"{stamp()}: Controller stopped")
-    cleanup()
-
-
 if __name__ == "__main__":
     import argparse
 
@@ -167,7 +74,7 @@ if __name__ == "__main__":
     if not port_list:
         # print(f"{stamp()}: ERROR: No serial ports found.",
         #       file=sys.stderr)
-        print_error(f"No serial ports found.")
+        print(f"{stamp()}: No serial ports found.", file=sys.stderr)
         sys.exit(1)
     if DEVICE not in port_list:
         DEVICE = port_list[0]
@@ -214,26 +121,26 @@ if __name__ == "__main__":
     if not arg_info.command:
         print(f"{stamp()}: Opening {arg_info.port} @ {arg_info.baudrate} bps",
               file=sys.stderr)
-
     try:
         ser = serial.Serial(arg_info.port, arg_info.baudrate, timeout=0.1,
                             writeTimeout=0.1)
     except serial.serialutil.SerialException:
         # print(f"{stamp()}: ERROR: Could not open serial port",
         #       file=sys.stderr)
-        print_error(f"Could not open {arg_info.port}")
+        print(f"{stamp()}: Could not open {arg_info.port}", file=sys.stderr)
         sys.exit(1)
-    cmd_queue = Queue()
-    rig = Cat(ser, arg_info.rig)
+
+    controller = Controller(ser, arg_info, version=__version__)
+
     if arg_info.command:
-        query_answer = rig.handle_query(arg_info.command)
+        query_answer = controller.send_command(arg_info.command)
         if query_answer:
             print(f"{query_answer[0]} {','.join(query_answer[1:])}")
             sys.exit(0)
         else:
             # print(f"{stamp()}: ERROR: Could not communicate with radio.",
             #       file=sys.stderr)
-            print_error(f"Could not communicate with radio on {arg_info.port}.")
+            print(f"{stamp()}: Could not communicate with radio on {arg_info.port}.")
             sys.exit(1)
 
     if os.environ.get('DISPLAY', '') == '':
@@ -242,97 +149,35 @@ if __name__ == "__main__":
         sys.exit(1)
         # os.environ.__setitem__('DISPLAY', ':0.0')
 
-    if arg_info.small:
-        size = 'small'
-    else:
-        size = 'normal'
-
-    root = tk.Tk()
-
-    loc = None
-    if arg_info.location:
-        loc = arg_info.location.split(':')
-        try:
-            x_loc = int(loc[0])
-            y_loc = int(loc[1])
-        except (ValueError, IndexError):
-            print(f"{stamp()}: '{arg_info.location}' is an invalid "
-                  f"screen position. Using defaults instead.",
-                  file=sys.stderr)
-            loc = None
-        else:
-            y_max = root.winfo_screenheight()
-            x_max = root.winfo_screenwidth()
-            if 0 <= x_loc < x_max - 100 and 0 <= y_loc < y_max - 100:
-                loc = (x_loc, y_loc)
-            else:
-                print(f"{stamp()}: '{arg_info.location}' is an invalid "
-                      f"screen position. Using defaults instead.",
-                      file=sys.stderr)
-                loc = None
     # Commands to verify we can communicate with the radio. If all work,
     # then there's a good chance the port isn't in use by another app
     test_queries = ('MS', 'AE', 'ID')
     for test in test_queries:
-        query_answer = rig.handle_query(test)
+        query_answer = controller.send_command(test)
         if not query_answer:
             # print(f"{stamp()}: ERROR: Could not communicate with radio.")
-            print_error(f"Could not communicate with "
-                        f"radio on {arg_info.port} @ {arg_info.baudrate}")
+            print(f"{stamp()}: Could not communicate with "
+                  f"radio on {arg_info.port} @ {arg_info.baudrate}",
+                  file=sys.stderr)
             sys.exit(1)
     print(f"{stamp()}: Found {query_answer[1]} on {arg_info.port} @ "
-          f"{arg_info.baudrate}",
-          file=sys.stderr)
-    rig.set_id(query_answer[1])
+          f"{arg_info.baudrate}", file=sys.stderr)
+    controller.set_id(query_answer[1])
 
-    # Set up XML-RPC server and corresponding thread.
-    try:
-        xmlrpc_server = RigXMLRPC(arg_info.xmlport, rig, cmd_queue)
-    except OSError as error:
-        # print(f"ERROR: XML-RPC port {arg_info.xmlport} is already in use")
-        print_error(f"XML-RPC port {arg_info.xmlport} is already in use.\n\n"
-                    f"Is Flrig running? Close it before running {__title__}.")
-        ser.close()
-        sys.exit(1)
-    xmlrpc_thread = Thread(target=xmlrpc_server.start)
-    # Kill this thread when the main app terminates
-    xmlrpc_thread.setDaemon(True)
+    root = tk.Tk()
+    controller.start_gui(root)
 
-    # Set up the GUI
-    msg_queue = Queue()
-    gui = Display(root=root,
-                  title=f"Kenwood {query_answer[1]} Controller",
-                  version=__version__,
-                  cmd_queue=cmd_queue, msg_queue=msg_queue,
-                  size=size, initial_location=loc)
-    msg_queue.put(['INFO', f"{stamp()}: Found {query_answer[1]} on "
-                           f"{arg_info.port} @ {arg_info.baudrate}"])
-    controller_thread = Thread(target=controller)
-    controller_thread.setDaemon(True)
-    controller_thread.start()
-
-    # Wait until radio is read and state dictionary populated
-    # before starting the XML-RPC server so that we have something to
-    # serve
-    time_current = time()
-    while rig.get_dictionary()['speed'] is None:
-        # Exit if we receive no data from radio in 5 seconds
-        if time() >= time_current + 5:
-            print_error(f"{stamp()}: No data received from radio in 5 "
-                        f"seconds")
-            sys.exit(1)
-    print(f"{stamp()}: Starting XML-RPC server", file=sys.stderr)
-    xmlrpc_thread.start()
-
-    # Stop program if Esc key pressed
-    root.bind('<Escape>', lambda e: cleanup())
+    # Stop program if Esc key or Ctrl-C pressed
+    root.bind('<Escape>', lambda e: controller.stop())
+    root.bind('<Control-c>', lambda e: controller.stop())
     # Stop program if window is closed at OS level ('X' in upper right
-    # corner or red dot in upper left on Mac)
+    # corner of GUI window)
     root.protocol("WM_DELETE_WINDOW",
-                  lambda: cleanup())
+                  lambda: controller.stop())
     print(f"{stamp()}: Starting mainloop", file=sys.stderr)
     root.mainloop()
     print(f"{stamp()}: Mainloop stopped", file=sys.stderr)
-    # SIGTERM is necessary if there's a connected TCP socket
+    # SIGTERM is necessary if there's a connected TCP socket from an
+    # XMLRPC client, otherwise the GUI stays open.
     this_process = os.getpid()
     os.kill(this_process, signal.SIGTERM)

@@ -12,14 +12,11 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2022, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
 _STATES = ('CLOSE_WAIT', 'ESTABLISHED')
-# Don't kill local processes in _EXCLUDED_CLIENTS when the server
-# shuts down.
-_EXCLUDED_CLIENTS = ('fldigi',)
 
 
 class SimpleThreadedXMLRPCServer(ThreadingMixIn, SimpleXMLRPCServer):
@@ -204,6 +201,9 @@ class RigXMLRPC(object):
         self.rpc_server.serve_forever()
 
     def stop(self):
+        # Don't kill local processes in _EXCLUDED_CLIENTS when the server
+        # shuts down.
+        _EXCLUDED_CLIENTS = ('fldigi',)
         self.rpc_server.shutdown()
         # Use psutil.net_connections to extract a list of PIDs for
         # local processes that have ESTABLISHED or CLOSE-WAIT TCP

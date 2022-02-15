@@ -21,7 +21,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2022, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "2.0.1"
+__version__ = "2.0.2"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -35,6 +35,22 @@ class Display(object):
     _green = "#CCFF33"
     _amber = "#FF9933"
     _screen_bg_color = _green
+    scale = {'normal': {'w': 790, 'h': 420, 'frame_w': 650,
+                        'default_font_size': 18,
+                        'frequency_font_size': 40,
+                        'button_font_size': 16,
+                        'message_font_size': 12,
+                        'console_w': 75, 'console_h': 5,
+                        'x_offset': 5, 'y_offset': 35},
+             'small': {'w': 545, 'h': 285, 'frame_w': 200,
+                       'default_font_size': 10,
+                       'frequency_font_size': 20,
+                       'button_font_size': 8,
+                       'message_font_size': 8,
+                       'console_w': 72, 'console_h': 5,
+                       'x_offset': 5, 'y_offset': 25},
+             }
+    _scr = {'row': 0, 'col': 0}  # screen starts at row 0, column 0
 
     def __init__(self, **kwargs):
         default_kwargs = {'title': 'Kenwood TM-D710G/TM-V71A Controller'}
@@ -44,117 +60,131 @@ class Display(object):
         self.version = kwargs['version']
         self.cmd_q = kwargs['cmd_queue']
         size = kwargs.get('size', 'normal')
-        self._scale = {'normal': {'w': 790, 'h': 420, 'frame_w': 650,
-                                  'default_font_size': 18,
-                                  'frequency_font_size': 40,
-                                  'button_font_size': 16,
-                                  'message_font_size': 12,
-                                  'console_w': 75, 'console_h': 5,
-                                  'x_offset': 5, 'y_offset': 35},
-                       'small': {'w': 545, 'h': 285, 'frame_w': 200,
-                                 'default_font_size': 10,
-                                 'frequency_font_size': 20,
-                                 'button_font_size': 8,
-                                 'message_font_size': 8,
-                                 'console_w': 72, 'console_h': 5,
-                                 'x_offset': 5, 'y_offset': 25},
-                       }
-        _scr = {'row': 0, 'col': 0}  # screen starts at row 0, column 0
-        self._default_font = ("Tahoma", self._scale[size]['default_font_size'])
-        _frequency_font = ("Tahoma", self._scale[size]['frequency_font_size'])
-        self._button_font = ("Tahoma", self._scale[size]['button_font_size'])
+        self.current_color = None
+        self._default_font = ("Tahoma",
+                              Display.scale[size]['default_font_size'])
+        self._frequency_font = ("Tahoma",
+                                Display.scale[size]['frequency_font_size'])
+        self._button_font = ("Tahoma",
+                             Display.scale[size]['button_font_size'])
         # labels dictionary tuples: (row, column, columnspan,
         # rowspan, sticky, font, tooltip)
-        self.labels_dict = {'A': {'ptt': (_scr['row'], _scr['col'], 1, 1,
-                                          'w', self._default_font, "Push-to-talk"),
-                                  'ctrl': (_scr['row'], _scr['col'] + 1, 1, 1,
-                                           'w', self._default_font, "Control"),
-                                  'tone': (_scr['row'], _scr['col'] + 2, 1, 1,
+        self.labels_dict = {'A': {'ptt': (Display._scr['row'],
+                                          Display._scr['col'], 1, 1,
+                                          'w', self._default_font,
+                                          "Push-to-talk"),
+                                  'ctrl': (Display._scr['row'],
+                                           Display._scr['col'] + 1, 1, 1,
+                                           'w', self._default_font,
+                                           "Control"),
+                                  'tone': (Display._scr['row'],
+                                           Display._scr['col'] + 2, 1, 1,
                                            'e', self._default_font,
                                            "Tone Type: Tone, DCS, or CTCSS.\nClick to change"),
-                                  'tone_frequency': (_scr['row'], _scr['col'] + 3, 1, 1,
+                                  'tone_frequency': (Display._scr['row'],
+                                                     Display._scr['col'] + 3, 1, 1,
                                                      'w', self._default_font,
                                                      "Tone, DCS, or CTCSS frequency.\nClick to change"),
-                                  'shift': (_scr['row'], _scr['col'] + 4, 1, 1,
+                                  'shift': (Display._scr['row'],
+                                            Display._scr['col'] + 4, 1, 1,
                                             'w', self._default_font,
                                             "TX shift direction.\n'S' is simplex"),
-                                  'reverse': (_scr['row'], _scr['col'] + 5, 1,
+                                  'reverse': (Display._scr['row'],
+                                              Display._scr['col'] + 5, 1,
                                               1, 'e', self._default_font,
                                               "'R': TX and RX frequencies reversed"),
-                                  'modulation': (_scr['row'], _scr['col'] + 6,
+                                  'modulation': (Display._scr['row'],
+                                                 Display._scr['col'] + 6,
                                                  1, 1, 'e', self._default_font,
                                                  "Modulation: FM, NFM or AM.\nClick to change"),
-                                  'power': (_scr['row'] + 1, _scr['col'], 1, 1,
+                                  'power': (Display._scr['row'] + 1,
+                                            Display._scr['col'], 1, 1,
                                             'w', self._default_font,
                                             "Power: High, Medium, Low.\nClick to change"),
-                                  'data': (_scr['row'] + 1, _scr['col'] + 6, 1,
+                                  'data': (Display._scr['row'] + 1,
+                                           Display._scr['col'] + 6, 1,
                                            1, 'e', self._default_font,
                                            "'D' means data on this side.\nClick to change"),
-                                  'ch_name': (_scr['row'] + 1, _scr['col'] + 1,
+                                  'ch_name': (Display._scr['row'] + 1,
+                                              Display._scr['col'] + 1,
                                               2, 1, 'e', self._default_font,
                                               "Memory Channel Name"),
-                                  'ch_number': (_scr['row'] + 1,
-                                                _scr['col'] + 4, 1, 1,
+                                  'ch_number': (Display._scr['row'] + 1,
+                                                Display._scr['col'] + 4, 1, 1,
                                                 'w', self._default_font,
                                                 "Memory Channel Number.\nClick to go to different memory"),
-                                  'mode': (_scr['row'] + 4, _scr['col'],
+                                  'mode': (Display._scr['row'] + 4,
+                                           Display._scr['col'],
                                            1, 1, 'sw', self._default_font,
                                            "Mode: VFO, MR, CALL or WX.\nClick to change"),
-                                  'frequency': (_scr['row'] + 2, _scr['col'] + 1,
-                                                5, 3, 'nsw', _frequency_font,
+                                  'frequency': (Display._scr['row'] + 2,
+                                                Display._scr['col'] + 1,
+                                                5, 3, 'nsw', self._frequency_font,
                                                 "Frequency in MHz.\nClick to change"),
-                                  'step': (_scr['row'] + 4, _scr['col'] + 6,
+                                  'step': (Display._scr['row'] + 4,
+                                           Display._scr['col'] + 6,
                                            1, 1, 'se', self._default_font,
                                            "Step size in KHz.\nClick to change"),
                                   },
-                            'B': {'ptt': (_scr['row'], _scr['col'] + 8, 1,
+                            'B': {'ptt': (Display._scr['row'],
+                                          Display._scr['col'] + 8, 1,
                                           1, 'w', self._default_font, "Push-to-talk"),
-                                  'ctrl': (_scr['row'], _scr['col'] + 9, 1,
+                                  'ctrl': (Display._scr['row'],
+                                           Display._scr['col'] + 9, 1,
                                            1, 'w', self._default_font, "Control"),
-                                  'tone': (_scr['row'], _scr['col'] + 10, 1,
+                                  'tone': (Display._scr['row'],
+                                           Display._scr['col'] + 10, 1,
                                            1, 'e', self._default_font,
                                            "Tone Type: Tone, DCS, or CTCSS.\nClick to change"),
-                                  'tone_frequency': (_scr['row'], _scr['col'] + 11, 1,
+                                  'tone_frequency': (Display._scr['row'],
+                                                     Display._scr['col'] + 11, 1,
                                                      1, 'w', self._default_font,
                                                      "Tone, DCS, or CTCSS frequency.\nClick to change"),
-                                  'shift': (_scr['row'], _scr['col'] + 12, 1,
+                                  'shift': (Display._scr['row'],
+                                            Display._scr['col'] + 12, 1,
                                             1, 'w', self._default_font,
                                             "TX shift direction.\n'S' is simplex"),
-                                  'reverse': (_scr['row'], _scr['col'] + 13, 1,
+                                  'reverse': (Display._scr['row'],
+                                              Display._scr['col'] + 13, 1,
                                               1, 'e', self._default_font,
                                               "'R': TX and RX frequencies reversed"),
-                                  'modulation': (_scr['row'], _scr['col'] + 14,
+                                  'modulation': (Display._scr['row'],
+                                                 Display._scr['col'] + 14,
                                                  1, 1, 'e', self._default_font,
                                                  "Modulation: FM, NFM or AM.\nClick to change"),
-                                  'power': (_scr['row'] + 1, _scr['col'] + 8, 1,
+                                  'power': (Display._scr['row'] + 1,
+                                            Display._scr['col'] + 8, 1,
                                             1, 'w', self._default_font,
                                             "Power: High, Medium, Low.\nClick to change"),
-                                  'data': (_scr['row'] + 1, _scr['col'] + 14, 1,
+                                  'data': (Display._scr['row'] + 1,
+                                           Display._scr['col'] + 14, 1,
                                            1, 'e', self._default_font,
                                            "'D' means data on this side.\nClick to change"),
-                                  'ch_name': (_scr['row'] + 1, _scr['col'] + 9,
+                                  'ch_name': (Display._scr['row'] + 1,
+                                              Display._scr['col'] + 9,
                                               2, 1, 'e', self._default_font,
                                               "Memory Channel Name"),
-                                  'ch_number': (_scr['row'] + 1,
-                                                _scr['col'] + 12, 1, 1,
+                                  'ch_number': (Display._scr['row'] + 1,
+                                                Display._scr['col'] + 12, 1, 1,
                                                 'w', self._default_font,
                                                 "Memory Channel Number.\nClick to go to different memory"),
-                                  'mode': (_scr['row'] + 4, _scr['col'] + 8, 1,
+                                  'mode': (Display._scr['row'] + 4,
+                                           Display._scr['col'] + 8, 1,
                                            1, 'sw', self._default_font,
                                            "Mode: VFO, MR, CALL, or WX.\nClick to change"),
-                                  'frequency': (_scr['row'] + 2,
-                                                _scr['col'] + 9, 5, 3,
-                                                'nsw', _frequency_font,
+                                  'frequency': (Display._scr['row'] + 2,
+                                                Display._scr['col'] + 9, 5, 3,
+                                                'nsw', self._frequency_font,
                                                 "Frequency in MHz.\nClick to change"),
-                                  'step': (_scr['row'] + 4, _scr['col'] + 14,
+                                  'step': (Display._scr['row'] + 4,
+                                           Display._scr['col'] + 14,
                                            1, 1, 'se', self._default_font,
                                            "Step size in KHz.\nClick to change"),
                                   }
                             }
-        self.current_color = None
         # Make the root window
-        w = self._scale[size]['w']
-        h = self._scale[size]['h']
+        w = Display.scale[size]['w']
+        h = Display.scale[size]['h']
         ws = self.master.winfo_screenwidth()
         hs = self.master.winfo_screenheight()
         if kwargs['initial_location'] is None:
@@ -189,23 +219,23 @@ class Display(object):
         # Make the screen frame
         self.screen_frame = tk.Frame(master=content_frame,
                                      relief=tk.SUNKEN, borderwidth=5,
-                                     bg=self._screen_bg_color,
-                                     width=self._scale[size]['frame_w'])
+                                     bg=Display._screen_bg_color,
+                                     width=Display.scale[size]['frame_w'])
         self.screen_frame.grid(column=0, row=0, rowspan=6,
                                columnspan=14, sticky='nsew')
 
         self.msg_frame = tk.Frame(master=content_frame,
                                   borderwidth=5,
-                                  width=self._scale[size]['frame_w'])
+                                  width=Display.scale[size]['frame_w'])
         self.msg_frame.grid(column=0, row=8, columnspan=14, sticky='nsew')
         self.msg = MessageConsole(frame=self.msg_frame,
-                                  scale=self._scale[size],
+                                  scale=Display.scale[size],
                                   queue=kwargs['msg_queue'])
 
         # Make a vertical line separating the A and B sides of screen
         self.side_separator_frame = tk.Frame(master=self.screen_frame,
                                              padx=5, pady=3,
-                                             bg=self._screen_bg_color)
+                                             bg=Display._screen_bg_color)
         self.side_separator_frame.grid(column=7, row=0, rowspan=6,
                                        sticky='ns')
         separator = tk.Canvas(master=self.side_separator_frame,
@@ -216,7 +246,7 @@ class Display(object):
         for side in bottom_btns_frames.keys():
             self.bottom_btn_frame[side] = tk.Frame(master=self.screen_frame,
                                                    borderwidth=0,
-                                                   bg=self._screen_bg_color)
+                                                   bg=Display._screen_bg_color)
             self.bottom_btn_frame[side].grid(column=bottom_btns_frames[side]['col'],
                                              row=bottom_btns_frames[side]['row'],
                                              columnspan=bottom_btns_frames[side]['cspan'],
@@ -232,17 +262,19 @@ class Display(object):
                 self.screen_label[side][key] = tk.Label(
                     master=screen_field[side][key],
                     text=key[0:2], fg="black",
-                    bg=self._screen_bg_color, font=value[5])
+                    bg=Display._screen_bg_color, font=value[5])
                 if key in ('frequency', 'tone', 'tone_frequency',
                            'ch_name', 'mode', 'ch_number',
                            'power', 'data', 'modulation', 'step'):
                     self.screen_label[side][key]. \
                         bind("<Button-1>",
-                             lambda _, s=side, k=key: self.widget_clicked(side=s, key=k))
+                             lambda _, s=side,
+                             k=key: self.widget_clicked(side=s,
+                                                        key=k))
                 ToolTip(widget=self.screen_label[side][key],
                         text=value[6],
-                        x_offset=self._scale[size]['x_offset'],
-                        y_offset=self._scale[size]['y_offset']+10)
+                        x_offset=Display.scale[size]['x_offset'],
+                        y_offset=Display.scale[size]['y_offset'] + 10)
                 self.screen_label[side][key]. \
                     pack(fill=tk.BOTH, expand=True)
 
@@ -261,8 +293,8 @@ class Display(object):
                 bottom_btn_start_col += 1
                 ToolTip(widget=self.bottom_btn[side][b],
                         text=bottom_btns[b],
-                        x_offset=self._scale[size]['x_offset'],
-                        y_offset=self._scale[size]['y_offset'])
+                        x_offset=Display.scale[size]['x_offset'],
+                        y_offset=Display.scale[size]['y_offset'])
 
             bg_button = tk.Button(master=content_frame,
                                   text="Backlight Color",
@@ -272,8 +304,8 @@ class Display(object):
             bg_button.grid(row=6, column=0, sticky='nsew')
             ToolTip(widget=bg_button,
                     text="Click to toggle screen background color",
-                    x_offset=self._scale[size]['x_offset'],
-                    y_offset=self._scale[size]['y_offset'])
+                    x_offset=Display.scale[size]['x_offset'],
+                    y_offset=Display.scale[size]['y_offset'])
 
             self.timeout_button = \
                 tk.Button(master=content_frame,
@@ -284,8 +316,8 @@ class Display(object):
             self.timeout_button.grid(row=6, column=1, sticky='nsew')
             ToolTip(widget=self.timeout_button,
                     text="Click to set TX timeout (minutes)",
-                    x_offset=self._scale[size]['x_offset'],
-                    y_offset=self._scale[size]['y_offset'])
+                    x_offset=Display.scale[size]['x_offset'],
+                    y_offset=Display.scale[size]['y_offset'])
 
             micdown_button = tk.Button(master=content_frame,
                                        text="Mic Down",
@@ -295,8 +327,8 @@ class Display(object):
             micdown_button.grid(row=6, column=2, sticky='nsew')
             ToolTip(widget=micdown_button,
                     text="Click to emulate 'Down' button on mic",
-                    x_offset=self._scale[size]['x_offset'],
-                    y_offset=self._scale[size]['y_offset'])
+                    x_offset=Display.scale[size]['x_offset'],
+                    y_offset=Display.scale[size]['y_offset'])
             micup_button = tk.Button(master=content_frame,
                                      text="Mic Up",
                                      font=self._button_font,
@@ -305,8 +337,8 @@ class Display(object):
             micup_button.grid(row=6, column=3, sticky='nsew')
             ToolTip(widget=micup_button,
                     text="Click to emulate 'Up' button on mic",
-                    x_offset=self._scale[size]['x_offset'],
-                    y_offset=self._scale[size]['y_offset'])
+                    x_offset=Display.scale[size]['x_offset'],
+                    y_offset=Display.scale[size]['y_offset'])
 
             self.lock_button = tk.Button(master=content_frame,
                                          text="Lock is",
@@ -316,8 +348,8 @@ class Display(object):
             self.lock_button.grid(row=7, column=0, sticky='nsew')
             ToolTip(widget=self.lock_button,
                     text="Click to toggle radio controls lock",
-                    x_offset=self._scale[size]['x_offset'],
-                    y_offset=self._scale[size]['y_offset'])
+                    x_offset=Display.scale[size]['x_offset'],
+                    y_offset=Display.scale[size]['y_offset'])
 
             self.vhf_aip_button = tk.Button(master=content_frame,
                                             text="VHF AIP is",
@@ -327,8 +359,8 @@ class Display(object):
             self.vhf_aip_button.grid(row=7, column=1, sticky='nsew')
             ToolTip(widget=self.vhf_aip_button,
                     text="Click to toggle VHF Advanced Intercept Point",
-                    x_offset=self._scale[size]['x_offset'],
-                    y_offset=self._scale[size]['y_offset'])
+                    x_offset=Display.scale[size]['x_offset'],
+                    y_offset=Display.scale[size]['y_offset'])
 
             self.uhf_aip_button = tk.Button(master=content_frame,
                                             text="VHF AIP is",
@@ -338,8 +370,8 @@ class Display(object):
             self.uhf_aip_button.grid(row=7, column=2, sticky='nsew')
             ToolTip(widget=self.uhf_aip_button,
                     text="Click to toggle UHF Advanced Intercept Point",
-                    x_offset=self._scale[size]['x_offset'],
-                    y_offset=self._scale[size]['y_offset'])
+                    x_offset=Display.scale[size]['x_offset'],
+                    y_offset=Display.scale[size]['y_offset'])
 
             self.speed_button = tk.Button(master=content_frame,
                                           text="Tap",
@@ -349,15 +381,16 @@ class Display(object):
             self.speed_button.grid(row=7, column=3, sticky='nsew')
             ToolTip(widget=self.speed_button,
                     text="Click to toggle data audio tap (1200 or 9600)",
-                    x_offset=self._scale[size]['x_offset'],
-                    y_offset=self._scale[size]['y_offset'])
+                    x_offset=Display.scale[size]['x_offset'],
+                    y_offset=Display.scale[size]['y_offset'])
 
             quit_button = tk.Button(master=content_frame,
                                     text='Quit',
                                     font=self._button_font,
                                     command=lambda:
                                     self.cmd_q.put(['quit', ]))
-            quit_button.grid(row=13, column=0, columnspan=14, sticky='nsew')
+            quit_button.grid(row=13, column=0, columnspan=14,
+                             sticky='nsew')
 
     def widget_clicked(self, **kwargs):
 
@@ -369,13 +402,13 @@ class Display(object):
         else:
             _label = str(self.screen_label[s][k].cget('text'))
             self.msg.queue.put(['INFO', f"{stamp()}: Widget '{k}' on side "
-                                f"{s} clicked. Value is '{_label}'"])
+                                        f"{s} clicked. Value is '{_label}'"])
         if k == 'frequency':
             user_input = \
                 simpledialog.askfloat(
                     prompt=f"Enter desired frequency in MHz for "
                            f"side {s}",
-                    title=f"{s} side frequency",
+                    title=f"Side {s} frequency",
                     initialvalue=float(self.screen_label[s][k].cget('text')),
                     minvalue=FREQUENCY_LIMITS[s]['min'],
                     maxvalue=FREQUENCY_LIMITS[s]['max'])
@@ -387,7 +420,7 @@ class Display(object):
                     simpledialog.askinteger(
                         prompt=f"Enter desired channel number for "
                                f"side {s}",
-                        title=f"{s} side Frequency",
+                        title=f"Side {s} channel",
                         initialvalue=int(self.screen_label[s][k].cget('text')),
                         minvalue=MEMORY_LIMITS['min'],
                         maxvalue=MEMORY_LIMITS['max'])
@@ -395,11 +428,13 @@ class Display(object):
                     self.cmd_q.put([k, s, f"{int(user_input):03d}"])
             else:
                 self.msg.queue.put(['ERROR', f"{stamp()}: Side {s} is not "
-                                    "in memory mode. Cannot set memory location."])
+                                             "in memory mode. Cannot set memory location."])
         elif k == 'tone':
             RadioPopup(widget=self.screen_label[s][k],
-                       title=f"  Side {s} Tone Type  ",
-                       label=k, side=s,
+                       # title=f"  Side {s} Tone Type  ",
+                       pop_label=f"Side {s} Tone Type",
+                       label=k,
+                       side=s,
                        font=self._default_font,
                        initial_value=TONE_TYPE_DICT['inv'][self.screen_label[s][k].cget('text')],
                        content=TONE_TYPE_DICT['inv'],
@@ -415,39 +450,48 @@ class Display(object):
                 content = None
             if content is not None:
                 ComboPopup(widget=self.screen_label[s][k],
-                           title=f"  Side {s} Tone (Hz)  ",
-                           label=k, side=s,
+                           # title=f"  Side {s} Tone (Hz)  ",
+                           pop_label=f"Side {s} Tone (Hz)",
+                           label=k,
+                           side=s,
                            font=self._default_font,
                            content=list(TONE_FREQUENCY_DICT[tone_type]['map'].values()),
                            job_q=self.cmd_q)
         elif k == 'mode':
             RadioPopup(widget=self.screen_label[s][k],
-                       title=f"    Side {s} Mode     ",
-                       label=k, side=s,
+                       # title=f"    Side {s} Mode     ",
+                       pop_label=f"Side {s} Mode",
+                       label=k,
+                       side=s,
                        font=self._default_font,
                        initial_value=MODE_DICT['inv'][self.screen_label[s][k].cget('text')],
                        content=MODE_DICT['inv'],
                        job_q=self.cmd_q)
         elif k == 'power':
             RadioPopup(widget=self.screen_label[s][k],
-                       title=f"   Side {s} TX Power  ",
-                       label=k, side=s,
+                       # title=f"   Side {s} TX Power  ",
+                       pop_label=f"Side {s} TX Power",
+                       label=k,
+                       side=s,
                        font=self._default_font,
                        initial_value=POWER_DICT['inv'][self.screen_label[s][k].cget('text')],
                        content=POWER_DICT['inv'],
                        job_q=self.cmd_q)
         elif k == 'modulation':
             RadioPopup(widget=self.screen_label[s][k],
-                       title=f"  Side {s} Modulation  ",
-                       label=k, side=s,
+                       # title=f"  Side {s} Modulation  ",
+                       pop_label=f"Side {s} Modulation",
+                       label=k,
+                       side=s,
                        font=self._default_font,
                        initial_value=MODULATION_DICT['inv'][self.screen_label[s][k].cget('text')],
                        content=MODULATION_DICT['inv'],
                        job_q=self.cmd_q)
         elif k == 'step':
             RadioPopup(widget=self.screen_label[s][k],
-                       title=f"Side {s} Step Size (KHz)",
-                       label=k, side=s,
+                       pop_label=f"Side {s} Step Size (KHz)",
+                       label=k,
+                       side=s,
                        font=self._default_font,
                        initial_value=STEP_DICT['inv'][self.screen_label[s][k].cget('text')],
                        content=STEP_DICT['inv'],
@@ -455,7 +499,8 @@ class Display(object):
         elif k == 'speed':
             initial_value = DATA_SPEED_DICT['inv'][self.speed_button.cget('text')]
             RadioPopup(widget=self.speed_button,
-                       title=f"   Set data audio tap   ",
+                       # title=f"   Set data audio tap   ",
+                       pop_label=f"Set data audio tap",
                        label=k,
                        initial_value=initial_value,
                        font=self._default_font,
@@ -464,7 +509,8 @@ class Display(object):
         elif k == 'timeout':
             current_timeout = re.sub("[^0-9]", "", self.timeout_button.cget('text'))
             RadioPopup(widget=self.timeout_button,
-                       title=f"  TX Timeout (minutes)  ",
+                       # title=f"  TX Timeout (minutes)  ",
+                       pop_label=f"TX Timeout (minutes)",
                        label=k,
                        font=self._default_font,
                        initial_value=TIMEOUT_DICT['inv'][current_timeout],
@@ -481,23 +527,23 @@ class Display(object):
     def change_bg(self, **kwargs):
         if 'color' in kwargs.keys():
             if kwargs['color'] == 'amber':
-                self._screen_bg_color = self._amber
+                Display._screen_bg_color = self._amber
             else:
-                self._screen_bg_color = self._green
+                Display._screen_bg_color = self._green
         else:  # No color specified - just make it the other color
-            if self._screen_bg_color == self._green:
-                self._screen_bg_color = self._amber
+            if Display._screen_bg_color == self._green:
+                Display._screen_bg_color = self._amber
             else:
-                self._screen_bg_color = self._green
+                Display._screen_bg_color = self._green
         self.screen_frame. \
-            config(background=self._screen_bg_color)
+            config(background=Display._screen_bg_color)
         self.side_separator_frame. \
-            config(background=self._screen_bg_color)
+            config(background=Display._screen_bg_color)
         for side in ('A', 'B'):
             for key in self.labels_dict[side]:
                 self.screen_label[side][key]. \
-                    config(background=self._screen_bg_color)
-            self.bottom_btn_frame[side].config(background=self._screen_bg_color)
+                    config(background=Display._screen_bg_color)
+            self.bottom_btn_frame[side].config(background=Display._screen_bg_color)
 
     def update_display(self, data: dict):
         try:
@@ -570,7 +616,7 @@ class Popup(object):
 
     def __init__(self, **kwargs):
         self.widget = kwargs['widget']
-        self.title = kwargs['title']
+        self.title = kwargs.get('title', '.')
         self.label = kwargs['label']
         self.side = kwargs.get('side', None)
         self.content = kwargs['content']
@@ -584,8 +630,11 @@ class Popup(object):
         self.pop.geometry("+{}+{}".format(self.widget.winfo_rootx(),
                                           self.widget.winfo_rooty()))
         self.font = kwargs['font']
-        self.width = len(self.title)+12
+        self.width = len(kwargs['pop_label'])
         self.pop.wm_attributes("-topmost", True)
+        self.pop_label = ttk.Label(self.pop, font=self.font,
+                                   text=f"{kwargs['pop_label']}:")
+        self.pop_label.pack(anchor='w', padx=5, pady=5)
 
     def selection(self, data):
         if self.side is None:

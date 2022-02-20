@@ -9,7 +9,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2022, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "2.0.1"
+__version__ = "2.0.2"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -571,7 +571,6 @@ class Cat(object):
             arg_list = get_arg_list()  # Get the channel data for current mode
             if not arg_list or arg_list[0] == 'N':
                 return []
-            channel = 0
             if arg_list[0] == 'FO':
                 frequency = int(arg_list[2])
                 step = int(STEP_DICT['map'][arg_list[3]]) * 1000
@@ -583,28 +582,43 @@ class Cat(object):
                 # print(f"min = {_min}, max = {_min}")
                 if _min <= frequency <= _max:
                     arg_list[2] = f"{frequency:010d}"
+                    arg = f"{arg_list[0]} {','.join(arg_list[1:])}"
+                    _ans = self.handle_query(arg)
+                    if not _ans:
+                        return []
+                else:
+                    msg_queue.put(['ERROR',
+                                   f"{stamp()}: Frequency "
+                                   f"must be between {float(FREQUENCY_LIMITS[job[1]]['min']):.3f} "
+                                   f"and {float(FREQUENCY_LIMITS[job[1]]['max']):.3f} MHz"])
             elif arg_list[0] == 'ME':
                 channel = int(arg_list[1])
                 step = 1
                 if job[0] == 'down':
                     step *= -1
-                channel += step
                 _min = MEMORY_LIMITS['min']
                 _max = MEMORY_LIMITS['max']
-                if _min <= channel <= _max:
-                    arg_list.clear()
-                    arg_list = ['MR', '0' if job[1] == 'A' else '1',
-                                f"{channel:03d}"]
+                seeking_occupied_memory = True
+                while seeking_occupied_memory:
+                    channel += step
+                    if _min <= channel <= _max:
+                        arg_list.clear()
+                        arg_list = ['MR', '0' if job[1] == 'A' else '1',
+                                    f"{channel:03d}"]
+                        arg = f"{arg_list[0]} {','.join(arg_list[1:])}"
+                        _ans = self.handle_query(arg)
+                        if not _ans:
+                            return []
+                        if _ans[0] == 'N':
+                            msg_queue.put(['ERROR',
+                                           f"{stamp()}: Memory "
+                                           f"{channel} is empty"])
+                        else:
+                            seeking_occupied_memory = False
+                    else:
+                        seeking_occupied_memory = False
             else:
                 pass
-            arg = f"{arg_list[0]} {','.join(arg_list[1:])}"
-            _ans = self.handle_query(arg)
-            if not _ans:
-                return []
-            elif arg_list[0] == 'MR' and _ans[0] == 'N':
-                msg_queue.put(['ERROR',
-                               f"{stamp()}: Memory "
-                               f"{channel} is empty"])
         elif job[0] in ('ch_number',):
             arg_list = get_arg_list()  # Get the channel data for current mode
             if not arg_list or arg_list[0] == 'N':

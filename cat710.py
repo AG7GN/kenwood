@@ -9,7 +9,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2022, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "2.0.2"
+__version__ = "2.0.3"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -167,7 +167,7 @@ class Cat(object):
         """
         Queries the radio for several parameters that are used to
         populate a state dictionary, which maps values to the GUI.
-        Several commands are needed to obtain all of the required
+        Several commands are needed to obtain all the required
         information.
 
         :return: dictionary with the screen parameters. The dictionary
@@ -592,31 +592,25 @@ class Cat(object):
                                    f"must be between {float(FREQUENCY_LIMITS[job[1]]['min']):.3f} "
                                    f"and {float(FREQUENCY_LIMITS[job[1]]['max']):.3f} MHz"])
             elif arg_list[0] == 'ME':
-                channel = int(arg_list[1])
-                step = 1
-                if job[0] == 'down':
-                    step *= -1
-                _min = MEMORY_LIMITS['min']
-                _max = MEMORY_LIMITS['max']
-                seeking_occupied_memory = True
-                while seeking_occupied_memory:
-                    channel += step
-                    if _min <= channel <= _max:
-                        arg_list.clear()
-                        arg_list = ['MR', '0' if job[1] == 'A' else '1',
-                                    f"{channel:03d}"]
-                        arg = f"{arg_list[0]} {','.join(arg_list[1:])}"
-                        _ans = self.handle_query(arg)
-                        if not _ans:
-                            return []
-                        if _ans[0] == 'N':
-                            msg_queue.put(['ERROR',
-                                           f"{stamp()}: Memory "
-                                           f"{channel} is empty"])
-                        else:
-                            seeking_occupied_memory = False
-                    else:
-                        seeking_occupied_memory = False
+                ctrl_moved_temporarily = False
+                if self.state[job[1]]['ctrl'] != 'CTRL':
+                    ctrl_moved_temporarily = True
+                    ctrl = 0 if self.state['A']['ctrl'] == 'CTRL' else 1
+                    ptt = 0 if self.state['A']['ptt'] == 'PTT' else 1
+                    restore_arg = f"BC {ctrl},{ptt}"
+                    arg = f"BC {SIDE_DICT['inv'][job[1]]},{ptt}"
+                    if not self.handle_query(arg):
+                        return []
+                if 'up' in job[0]:
+                    arg = "UP"
+                else:
+                    arg = "DW"
+                if not self.handle_query(arg):
+                    return []
+                if ctrl_moved_temporarily:
+                    # Restore original CTRL state
+                    if not self.handle_query(restore_arg):
+                        return []
             else:
                 pass
         elif job[0] in ('ch_number',):

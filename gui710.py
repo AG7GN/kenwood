@@ -21,7 +21,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2022, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "2.0.2"
+__version__ = "2.0.3"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -309,7 +309,7 @@ class Display(object):
 
             self.timeout_button = \
                 tk.Button(master=content_frame,
-                          text="TX Timeout",
+                          text="TX TO",
                           font=self._button_font,
                           command=lambda:
                           self.widget_clicked(key='timeout'))
@@ -497,7 +497,9 @@ class Display(object):
                        content=STEP_DICT['inv'],
                        job_q=self.cmd_q)
         elif k == 'speed':
-            initial_value = DATA_SPEED_DICT['inv'][self.speed_button.cget('text')]
+            initial_value = DATA_SPEED_DICT['inv'][re.sub("[^0-9]",
+                                                          "",
+                                                          self.speed_button.cget('text'))]
             RadioPopup(widget=self.speed_button,
                        # title=f"   Set data audio tap   ",
                        pop_label=f"Set data audio tap",
@@ -558,7 +560,7 @@ class Display(object):
                 # Update state to current background color
                 self.change_bg(color=data['backlight'])
                 self.current_color = data['backlight']
-            self.timeout_button.config(text=f"TX Timeout {data['timeout']}")
+            self.timeout_button.config(text=f"TX TO is {data['timeout']}")
             self.timeout_button.update()
             self.lock_button.config(text=f"Lock is {data['lock']}")
             self.lock_button.update()
@@ -566,7 +568,7 @@ class Display(object):
             self.vhf_aip_button.update()
             self.uhf_aip_button.config(text=f"UHF AIP is {data['uhf_aip']}")
             self.uhf_aip_button.update()
-            self.speed_button.config(text=f"{data['speed']}")
+            self.speed_button.config(text=f"Audio tap is {data['speed']}")
             self.speed_button.update()
         except KeyError as _:
             raise UpdateDisplayException("Error updating display")

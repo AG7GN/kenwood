@@ -12,7 +12,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2022, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "1.0.3"
+__version__ = "1.0.4"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -133,6 +133,8 @@ class RigXMLRPC(object):
             data_side = rig_d['data_side']
             freq_f = float(frequency / 1000000)
             if within_frequency_limits(data_side, freq_f):
+                if rig_d[data_side]['mode'] != 'VFO':
+                    self.cmd_queue.put(['mode', data_side, '0'])
                 self.cmd_queue.put(['frequency', data_side, freq_f])
             return ''
         self.rpc_server.register_function(set_frequency, 'main.set_frequency')

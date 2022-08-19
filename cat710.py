@@ -1,6 +1,8 @@
 import io
 import re
 import sys
+from os import environ
+
 from common710 import *
 from queue import Queue
 from gpiozero import OutputDevice
@@ -9,7 +11,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2022, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "2.0.3"
+__version__ = "2.0.4"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -25,7 +27,7 @@ class Cat(object):
     are documented at https://github.com/LA3QMA/TM-V71_TM-D710-Kenwood
     """
 
-    def __init__(self, serial_port: object, nexus_side: str):
+    def __init__(self, serial_port: object, ptt_pin: str):
         """
         Initializes a BufferedRWPair object that wraps a serial object.
         Wrapping the serial port allows customization of the end-of-line
@@ -62,12 +64,12 @@ class Cat(object):
                       'gpio': None,
                       'id': ''
                       }
-        self.nexus_side = nexus_side
-        if self.nexus_side == 'none':
+        self.ptt_pin = ptt_pin
+        if self.ptt_pin == 'none':
             self.state['gpio'] = None
             self.ptt = None
         else:
-            self.state['gpio'] = GPIO_PTT_DICT[self.nexus_side]
+            self.state['gpio'] = GPIO_PTT_DICT[self.ptt_pin]
             self.ptt = OutputDevice(self.state['gpio'],
                                     active_high=True,
                                     initial_value=False)
@@ -155,6 +157,43 @@ class Cat(object):
                   file=sys.stderr)
             return []
         else:
+            return result
+
+    @staticmethod
+    def ask(ask_type: str, ask_msg: str):
+        """
+        If X Windows environment detected, pop up a window with
+        the warning message, otherwise print message to stderr.
+        :param ask_type: str of 'yesnocancel' or 'okcancel'. Used to determine
+        messagebox type. Default is okcancel.
+        :param ask_msg: String containing warning message
+        :return: True|False if user clicks Yes|No respectively, None if
+                 user clicks Cancel
+        """
+        if ask_type not in ('okcancel', 'yesnocancel'):
+            return False
+        if environ.get('DISPLAY', '') == '':
+            # X not running. Print ask_msg to stderr and don't prompt
+            # for answer
+            print(f"{stamp()}: {ask_msg}: YES", file=sys.stderr)
+            return True
+        else:
+            # X running. Use existing tkinter root if set
+            from tkinter import messagebox
+            import tkinter as tk
+            ask_root = tk.Tk()
+            ask_root.withdraw()
+            if ask_type == 'okcancel':
+                result = messagebox.askokcancel(title=f"Confirm",
+                                                message=ask_msg,
+                                                parent=ask_root)
+            elif ask_type == 'yesnocancel':
+                result = messagebox.askyesnocancel(title=f"Confirm",
+                                                   message=ask_msg,
+                                                   parent=ask_root)
+            else:
+                result = False
+            ask_root.destroy()
             return result
 
     def set_id(self, radio_id: str):
@@ -358,7 +397,7 @@ class Cat(object):
 
     def get_dictionary(self) -> dict:
         """
-        Returns state of radio state as a dictionary
+        Returns state of radio as a dictionary
         :return: state dictionary
         """
         return self.state
@@ -409,16 +448,37 @@ class Cat(object):
             else:
                 return []
 
+        def get_ptt_ctrl() -> tuple:
+            """
+            Retrieves current PTT and CTRL state of radio
+            :return: Tuple (CTRL_state, PTT_state) where CTRL_state and
+            PTT_state are 0 or 1. Returns empty tuple if unable to
+            retrieve data
+            """
+            _answer = self.handle_query("BC")
+            if not _answer:
+                return ()
+            return _answer[1], _answer[2]
+
         if job[0] in ('mode',):  # 'VM' command - mode change requested
+            # Save current CTRL state because radio will move CTRL to the
+            # side of the radio that's changing modes. Will restore
+            # state later.
+            ptt_ctrl_state = get_ptt_ctrl()
+            if not ptt_ctrl_state:
+                return []
             arg = f"VM {SIDE_DICT['inv'][job[1]]},{job[2]}"
             if not self.handle_query(arg):
                 return []
+            # Restore original PTT, CTRL state
+            _ctrl, _ptt = ptt_ctrl_state
+            if not self.handle_query(f"BC {_ctrl},{_ptt}"):
+                return []
         elif job[0] in ('ptt', 'ctrl'):  # 'BC' command
-            answer = self.handle_query("BC")
+            answer = get_ptt_ctrl()
             if not answer:
                 return []
-            ctrl = answer[1]
-            ptt = answer[2]
+            ctrl, ptt = answer
             if job[0] == 'ptt':
                 arg = f"BC {ctrl},{SIDE_DICT['inv'][job[1]]}"
             else:  # Setting ctrl
@@ -437,7 +497,7 @@ class Cat(object):
             if not self.handle_query(arg):
                 return []
         elif job[0] in ('frequency', 'modulation', 'step',
-                        'tone', 'tone_frequency', 'rev'):
+                        'tone', 'tone_frequency', 'rev', 'shift'):
             arg_list = get_arg_list()
             if not arg_list or arg_list[0] == 'N':
                 return []
@@ -479,10 +539,14 @@ class Cat(object):
                         TONE_FREQUENCY_DICT[current_type]['inv'][job[2]]
             if job[0] == 'frequency':
                 arg_list[2] = f"{int(job[2] * 1000000):010d}"
+                arg_list[4] = frequency_shifts(int(job[2] * 1000000))[0]
+                arg_list[12] = frequency_shifts(int(job[2] * 1000000))[1]
             if job[0] == 'modulation':
                 arg_list[13] = job[2]
             if job[0] == 'step':
                 arg_list[3] = job[2]
+            if job[0] == 'shift':
+                arg_list[4] = job[2]
             # if job[0] == 'rev' and arg_list[4] != '0':
             if job[0] == 'rev':
                 _freq = int(arg_list[2])
@@ -508,13 +572,57 @@ class Cat(object):
             else:
                 pass
             if arg_list[0] == 'ME':
-                # MR mode
-                # Kenwood provides no CAT command for changing the
-                # frequency band on a given side. To work around
-                # this shortcoming, we must modify the memory channel.
-                msg_queue.put(['WARNING',
-                               f"{stamp()}: WARNING: Modifying "
-                               f"memory {int(arg_list[1])}!"])
+                # MR mode - If GUI, ask user to confirm modification of
+                # memory location
+                # First, determine whether memory contains a frequency
+                # that's allowed as a VFO on this side of the radio
+                #    Toggle to VFO mode and get the VFO for this side
+                if not self.handle_query(f"VM {SIDE_DICT['inv'][job[1]]},0"):
+                    return []
+                result = self.handle_query(f"FO {SIDE_DICT['inv'][job[1]]}")
+                if not result:
+                    return []
+                # Toggle back to Memory mode
+                if not self.handle_query(f"VM {SIDE_DICT['inv'][job[1]]},1"):
+                    return []
+                # Is the VFO frequency in the same band as the memory freq?
+                if same_frequency_band(int(result[2]), int(arg_list[2])):
+                    answer = self.ask('yesnocancel',
+                                      f"You are about to modify memory "
+                                      f"{int(arg_list[1])}. Proceed?\n\n"
+                                      f"Yes:    Modify mem {int(arg_list[1])}\n"
+                                      f"No:     Copy mem {int(arg_list[1])} to VFO,\n\t"
+                                      f"then modify VFO\n"
+                                      f"Cancel: Do nothing")
+                else:
+                    # Copying memory contents to VFO is not possible
+                    # because mem frequency is out of band for VFO on this
+                    # side of the radio.
+                    answer = self.ask('okcancel',
+                                      f"You are about to modify memory "
+                                      f"{int(arg_list[1])}. Continue?")
+                    if not answer:
+                        answer = None
+                if answer:
+                    # User clicked Yes/OK, so modify memory location
+                    msg_queue.put(['WARNING',
+                                   f"{stamp()}: WARNING: Modifying "
+                                   f"memory {int(arg_list[1])}!"])
+                elif answer is None:
+                    # User cancelled
+                    job[0] = None
+                else:
+                    # User clicked No
+                    # Change to VFO mode and set VFO to data from memory location
+                    msg_queue.put(['INFO',
+                                   f"{stamp()}: Copying memory "
+                                   f"{int(arg_list[1])} contents to VFO"])
+
+                    if not self.handle_query(f"VM {SIDE_DICT['inv'][job[1]]},0"):
+                        return []
+                    arg_list[0] = 'FO'
+                    arg_list[1] = SIDE_DICT['inv'][job[1]]
+                    del arg_list[14:]
             if job[0] is not None:
                 if not self.handle_query(f"{arg_list[0]} {','.join(arg_list[1:])}"):
                     return []
@@ -571,7 +679,7 @@ class Cat(object):
             arg_list = get_arg_list()  # Get the channel data for current mode
             if not arg_list or arg_list[0] == 'N':
                 return []
-            if arg_list[0] == 'FO':
+            if arg_list[0] in ('FO', ):
                 frequency = int(arg_list[2])
                 step = int(STEP_DICT['map'][arg_list[3]]) * 1000
                 if job[0] == 'down':
@@ -582,6 +690,16 @@ class Cat(object):
                 # print(f"min = {_min}, max = {_min}")
                 if _min <= frequency <= _max:
                     arg_list[2] = f"{frequency:010d}"
+                    arg_list[4] = frequency_shifts(frequency)[0]
+                    arg_list[5] = '0'  # Disable reverse
+                    # arg_list[6] = '0'  # Set tone status to no tone
+                    # arg_list[7] = '0'  # Set CTCSS status to no CTCSS
+                    # arg_list[8] = '0'  # Set DCS status to no DCS
+                    # arg_list[9] = '08'  # Set tone frequency to default
+                    # arg_list[10] = '08'  # Set CTCSS frequency to default
+                    # arg_list[11] = '000'  # Set DCS frequency to default
+                    arg_list[12] = frequency_shifts(frequency)[1]
+                    # arg_list[13] = '0'  # Set mode to FM
                     arg = f"{arg_list[0]} {','.join(arg_list[1:])}"
                     _ans = self.handle_query(arg)
                     if not _ans:
@@ -591,7 +709,7 @@ class Cat(object):
                                    f"{stamp()}: Frequency "
                                    f"must be between {float(FREQUENCY_LIMITS[job[1]]['min']):.3f} "
                                    f"and {float(FREQUENCY_LIMITS[job[1]]['max']):.3f} MHz"])
-            elif arg_list[0] == 'ME':
+            elif arg_list[0] in ('ME', ):
                 ctrl_moved_temporarily = False
                 if self.state[job[1]]['ctrl'] != 'CTRL':
                     ctrl_moved_temporarily = True

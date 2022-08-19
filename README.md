@@ -1,7 +1,7 @@
 # Kenwood
 Files related to Kenwood radios
 
-VERSION 20220129
+VERSION 20220819
 
 ## 710.py and 710.sh
 
@@ -12,7 +12,46 @@ Two scripts that provide CAT control for Kenwood TM-D710G or TM-V71A radios on a
 
 The `710.sh` script requires `710.py` to talk to the radio. It does not start the `710.py` GUI in this case. `710.py` uses the Python serial library to communicate with the radio. 
 
-## Most recent significant changes
+## Recent significant changes
+
+1. Ability to set shift (simplex, negative or positive).
+1. Changing the frequency, modulation, step, tone, tone frequency, reverse or shift in the GUI while in memory mode will now prompt the user to modify the memory or copy the memory contents to VFO and then make the modifications. If the user attempts to change the frequency to one that is not in the band currently set to that side of the radio, the user will be prompted to either modify the memory or abort the change.
+1. User can select any Raspberry Pi GPIO pin for PTT, not just the 'left' and 'right' radios for the Nexus DR-X. 'left' and 'right' are still available and will map to GPIO 12 and GPIO23 respectively.
+1. Clicking 'Up' or 'Down' when in VFO mode now more closely mimics turning the tuning knob on the radio in terms of what parameters are kept from frequency to frequency. For example, the shift setting will automatically change as frequencies traverse the ranges described in the TM-D710GA manual:
+
+	- VHF
+		
+		Under 145.100 MHz:		No offset (Simplex operation)
+	
+		145.100 ~ 145.499 MHz: 	– 600 kHz offset
+	
+		145.500 ~ 145.999 MHz: 	No offset (Simplex operation)
+	
+		146.000 ~ 146.399 MHz: 	+ 600 kHz offset
+	
+		146.400 ~ 146.599 MHz:	No offset (Simplex operation)
+	
+		146.600 ~ 146.999 MHz:	– 600 kHz offset
+	
+		147.000 ~ 147.399 MHz:	+ 600 kHz offset
+	
+		147.400 ~ 147.599 MHz:	No offset (Simplex operation)
+	
+		147.600 ~ 147.999 MHz:	– 600 kHz offset
+	 
+		148.000 MHz and higher:	No offset (Simplex operation)
+
+	- UHF
+	
+		Under 442.000 MHz:		No offset (Simplex operation)
+		
+		442.000 ~ 444.999 MHz:	+ 5 MHz offset
+		
+		445.000 ~ 446.999 MHz:	No offset (Simplex operation)
+		
+		447.000 ~ 449.999 MHz:	– 5 MHz offset
+		
+		450.000 MHz and higher:	No offset (Simplex operation)
 
 1. `710.py` now has a multithreaded XML-RPC server. This allows Fldigi to communicate with `710.py` as if `710.py` were Flrig. Apps using Hamlib can also use `710.py` via hamlib's 'FLRig' setting. Details below.
 
@@ -26,7 +65,7 @@ The `710.sh` script requires `710.py` to talk to the radio. It does not start th
 
 	1. When in VFO mode, you cannot select a frequency outside the frequency band set for that side. 
 
-	1. If you modify the frequency, tone type, tone frequency, step, reverse or modulation using the GUI (`710.py`), the change will take place __*in the current mode for that side (VFO, CALL or MR)*__. If the change to one of these parameters is requested when in MR mode, __*that memory location will be modified*__! A warning message will appear in the message queue window telling the user that the memory location has been modified. 
+	1. Changing the frequency, modulation, step, tone, tone frequency, reverse or shift in the GUI while in memory mode will prompt the user to modify the memory or copy the memory contents to VFO and then make the modifications. If the user attempts to change the frequency to one that is not in the band currently set to that side of the radio, the user will be prompted to either modify the memory or abort the change.
 	
 	1. If you use the shell script (`710.sh`) to change the frequency, the script will first change the mode to VFO (if it's not already in that mode) and attempt to set the desired frequency. If the desired frequency is not in the currently set frequency band for that side, the frequency will not be changed. 
 
@@ -218,36 +257,34 @@ If you did the optional `udev` rule setup in the previous step, then you already
 
 - Running `710.py -h` my Pi for example shows:
 
-		pi@nexuspi4b-ag7gn:~ $ 710.py -h
+		pi@nexuspi4b-ag7gn:/usr/local/bin $ 710.py -h
 		usage: 710.py [-h] [-v]
-				[-p {/dev/kenwoodTM-V71A,/dev/gps1,/dev/ttyUSB1,/dev/serial0,/dev/serial1,/dev/ttyS0,/dev/ttyAMA0,/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0}]
-				[-b {300,1200,2400,4800,9600,19200,38400,57600}] 
-				[-s] 
-				[-l x:y] 
-				[-x [1024-65535]] 
-				[-r {none,left,right}] 
-				[-c COMMAND]
+				[-p {/dev/kenwoodTM-D710G,/dev/gps2,/dev/ttyUSB2,/dev/gps0,/dev/gps1,/dev/serial1,/dev/serial0,/dev/ttyUSB1,/dev/ttyUSB0,/dev/ttyS0,/dev/ttyAMA0,/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0,/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_IC-7100_02007519_A-if00-port0,/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_IC-7100_02007519_B-if00-port0}]
+				[-b {300,1200,2400,4800,9600,19200,38400,57600}] [-s] [-l x:y] [-x [1024-65535]]
+				[-r {none,left,right,17,18,27,22,23,24,25,4,5,6,13,19,26,12,16,20,21}] [-c COMMAND]
 
 		CAT control for Kenwood TM-D710G/TM-V71A
 
 		optional arguments:
-		  -h, --help      show this help message and exit
-		  -v, --version   show program's version number and exit
-		  -p {/dev/kenwoodTM-V71A,/dev/gps1,/dev/ttyUSB1,/dev/serial0,/dev/serial1,/dev/ttyS0,/dev/ttyAMA0,/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0}, --port {/dev/kenwoodTM-V71A,/dev/gps1,/dev/ttyUSB1,/dev/serial0,/dev/serial1,/dev/ttyS0,/dev/ttyAMA0,/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0}
-					Serial port connected to radio (default: /dev/gps1)
+		  -h, --help            show this help message and exit
+		  -v, --version         show program's version number and exit
+		  -p {/dev/kenwoodTM-D710G,/dev/gps2,/dev/ttyUSB2,/dev/gps0,/dev/gps1,/dev/serial1,/dev/serial0,/dev/ttyUSB1,/dev/ttyUSB0,/dev/ttyS0,/dev/ttyAMA0,/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0,/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_IC-7100_02007519_A-if00-port0,/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_IC-7100_02007519_B-if00-port0}, --port {/dev/kenwoodTM-D710G,/dev/gps2,/dev/ttyUSB2,/dev/gps0,/dev/gps1,/dev/serial1,/dev/serial0,/dev/ttyUSB1,/dev/ttyUSB0,/dev/ttyS0,/dev/ttyAMA0,/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0,/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_IC-7100_02007519_A-if00-port0,/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_IC-7100_02007519_B-if00-port0}
+										Serial port connected to radio (default: /dev/ttyUSB0)
 		  -b {300,1200,2400,4800,9600,19200,38400,57600}, --baudrate {300,1200,2400,4800,9600,19200,38400,57600}
-					Serial port speed (must match radio) (default: 57600)
-		  -s, --small     Smaller GUI window (default: False)
+										Serial port speed (must match radio) (default: 57600)
+		  -s, --small           Smaller GUI window (default: False)
 		  -l x:y, --location x:y
-					x:y: Initial x and y position (in pixels) of upper left corner of GUI. (default: None)
+										x:y: Initial x and y position (in pixels) of upper left corner of GUI. (default: None)
 		  -x [1024-65535], --xmlport [1024-65535]
-					TCP port on which to listen for XML-RPC rig control calls from clients such as Fldigi or Hamlib (default: 12345)
-		  -r {none,left,right}, --rig {none,left,right}
-					Nexus DR-X Users: Select left or right radio if you want to control GPIO PTT via an XML-RPC 'rig.set_ptt' call. This will map to GPIO
-					pin 12 for the left radio and pin 23 for the right. 'none' means that 'rig.set_ptt' calls will be ignored. In any case, PTT
-					activation via CAT command is never used. (default: none)
+										TCP port on which to listen for XML-RPC rig control calls from clients such as Fldigi or Hamlib (default:
+										12345)
+		  -r {none,left,right,17,18,27,22,23,24,25,4,5,6,13,19,26,12,16,20,21}, --rig {none,left,right,17,18,27,22,23,24,25,4,5,6,13,19,26,12,16,20,21}
+										BCM GPIO pin number for PTT control. Nexus DR-X Users: Select left or right radio if you want to control GPIO
+										PTT via an XML-RPC 'rig.set_ptt' call. This will map to GPIO pin 12 for the left radio and pin 23 for the
+										right. 'none' means that 'rig.set_ptt' calls will be ignored. In any case, PTT activation via CAT command is
+										never used. (default: none)
 		  -c COMMAND, --command COMMAND
-					CAT command to send to radio (no GUI) (default: None)
+										CAT command to send to radio (no GUI) (default: None)
 
 
 ### Make a Hamradio menu selection for `710.py`

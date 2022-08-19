@@ -11,6 +11,7 @@ import signal
 import tkinter as tk
 from common710 import stamp
 from common710 import XMLRPC_PORT
+from common710 import GPIO_PTT_DICT
 from controller710 import Controller
 
 __title__ = "710.py"
@@ -18,7 +19,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2022, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "2.1.3"
+__version__ = "2.1.4"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -105,9 +106,10 @@ if __name__ == "__main__":
                              "XML-RPC rig control calls from "
                              "clients such as Fldigi or Hamlib")
     parser.add_argument("-r", "--rig", type=str,
-                        choices=('none', 'left', 'right'),
+                        choices=list(GPIO_PTT_DICT.keys()),
                         default='none',
-                        help="Nexus DR-X Users: Select left or right "
+                        help="BCM GPIO pin number for PTT control. "
+                             "Nexus DR-X Users: Select left or right "
                              "radio if you want to control GPIO PTT via "
                              "an XML-RPC 'rig.set_ptt' call. This will "
                              "map to GPIO pin 12 for the left radio and "

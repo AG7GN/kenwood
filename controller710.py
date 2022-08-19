@@ -15,7 +15,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2022, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "1.0.0"
+__version__ = "1.0.2"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -37,7 +37,7 @@ class Controller(object):
         self.o_serial = o_serial
         self.serial_port = args.port
         self.baudrate = args.baudrate
-        self.ptt_side = args.rig
+        self.ptt_pin = args.rig
         self.xmlrpc_port = args.xmlport
         self.loc = args.location
         if args.small:
@@ -49,7 +49,7 @@ class Controller(object):
         self.gui = None
         self.xmlrpc_server = None
         self.title = None
-        self.cat = Cat(self.o_serial, self.ptt_side)
+        self.cat = Cat(self.o_serial, self.ptt_pin)
         self.cmd_queue = Queue()
         self.controller_thread = None
         self.controller_running = False
@@ -58,7 +58,7 @@ class Controller(object):
                                            self.cmd_queue)
         except OSError as _:
             self.print_error(f"XML-RPC port {self.xmlrpc_port} is already in use.\n\n"
-                             f"Is this program or already Flrig running?\n"
+                             f"Is this program or Flrig already running?\n"
                              f"Close it before running this program.")
             self.stop()
         else:
@@ -80,7 +80,8 @@ class Controller(object):
                 self.stop()
         print(f"{stamp()}: Starting XML-RPC server...", file=sys.stderr)
         self.xmlrpc_thread.start()
-        print(f"{stamp()}: XML-RPC server running.", file=sys.stderr)
+        print(f"{stamp()}: XML-RPC server listening on port "
+              f"{self.xmlrpc_port}.", file=sys.stderr)
 
     def start_gui(self, root: object):
         self.root = root
@@ -125,6 +126,8 @@ class Controller(object):
         self.controller_thread.start()
         print(f"{stamp()}: Controller running.", file=sys.stderr)
         self._start_xmlrpc_server()
+        self.msg_queue.put(['INFO', f"{stamp()}: XML-RPC server "
+                                    f"listening on port {self.xmlrpc_port}"])
 
     def controller(self):
         while self.controller_running:
@@ -190,6 +193,7 @@ class Controller(object):
                                      parent=self.root)
 
     def send_command(self, cmd: str) -> list:
+        # This is not managed by the job queue!
         return self.cat.handle_query(cmd)
 
     def set_id(self, model: str):

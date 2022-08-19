@@ -9,6 +9,7 @@ from common710 import MEMORY_LIMITS
 from common710 import TONE_TYPE_DICT
 from common710 import TONE_FREQUENCY_DICT
 from common710 import DCS_FREQUENCY_DICT
+from common710 import SHIFT_DICT
 from common710 import MODE_DICT
 from common710 import POWER_DICT
 from common710 import MODULATION_DICT
@@ -143,7 +144,7 @@ class Display(object):
                                   'shift': (Display._scr['row'],
                                             Display._scr['col'] + 12, 1,
                                             1, 'w', self._default_font,
-                                            "TX shift direction.\n'S' is simplex"),
+                                            "TX shift direction.\n'S' is simplex\nClick to change"),
                                   'reverse': (Display._scr['row'],
                                               Display._scr['col'] + 13, 1,
                                               1, 'e', self._default_font,
@@ -264,7 +265,7 @@ class Display(object):
                     text=key[0:2], fg="black",
                     bg=Display._screen_bg_color, font=value[5])
                 if key in ('frequency', 'tone', 'tone_frequency',
-                           'ch_name', 'mode', 'ch_number',
+                           'ch_name', 'shift', 'mode', 'ch_number',
                            'power', 'data', 'modulation', 'step'):
                     self.screen_label[side][key]. \
                         bind("<Button-1>",
@@ -457,6 +458,16 @@ class Display(object):
                            font=self._default_font,
                            content=list(TONE_FREQUENCY_DICT[tone_type]['map'].values()),
                            job_q=self.cmd_q)
+        elif k == 'shift':
+            RadioPopup(widget=self.screen_label[s][k],
+                       # title=f"    Side {s} Shift     ",
+                       pop_label=f"Side {s} Shift",
+                       label=k,
+                       side=s,
+                       font=self._default_font,
+                       initial_value=SHIFT_DICT['inv'][self.screen_label[s][k].cget('text')],
+                       content=SHIFT_DICT['inv'],
+                       job_q=self.cmd_q)
         elif k == 'mode':
             RadioPopup(widget=self.screen_label[s][k],
                        # title=f"    Side {s} Mode     ",

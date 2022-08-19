@@ -31,10 +31,14 @@ __all__ = [
     'CTRL_DICT',
     'MENU_DICT',
     'GPIO_PTT_DICT',
+    'DEFAULT_STEP_VHF',
+    'DEFAULT_STEP_UHF',
     'stamp',
     'within_frequency_limits',
+    'same_frequency_band',
     'QueryException',
-    'UpdateDisplayException'
+    'UpdateDisplayException',
+    'frequency_shifts'
 ]
 
 XMLRPC_PORT = 12345
@@ -85,7 +89,7 @@ def same_frequency_band(freq1: int, freq2: int) -> bool:
     False otherwise
     """
     same_band = False
-    for band, freq_range in FREQUENCY_BAND_LIMITS.items():
+    for freq_range in FREQUENCY_BAND_LIMITS.values():
         if freq1 in range(freq_range['min'], freq_range['max']) \
                 and freq2 in range(freq_range['min'],
                                    freq_range['max']):
@@ -94,7 +98,36 @@ def same_frequency_band(freq1: int, freq2: int) -> bool:
     return same_band
 
 
-GPIO_PTT_DICT = {'none': None, 'left': 12, 'right': 23}
+def frequency_shifts(frequency: int) -> tuple:
+    """
+    Given a frequency, it returns a value that translates to whether
+    the frequency is simplex (0), + (1) or - (2)
+    :param frequency: Integer value of frequency in Hz
+    :return: Tuple containing 0, 1 or 2 (simplex, up or down
+    respectively) and shift frequency in Hz
+    """
+    if 145100000 <= frequency <= 145499900:
+        return '2', '00600000'
+    elif 146000000 <= frequency <= 146399000:
+        return '1', '00600000'
+    elif 146600000 <= frequency <= 146999000:
+        return '2', '00600000'
+    elif 147000000 <= frequency <= 147399000:
+        return '1', '00600000'
+    elif 147600000 <= frequency <= 147999000:
+        return '2', '00600000'
+    elif 442000000 <= frequency <= 444999000:
+        return '1', '05000000'
+    elif 447000000 <= frequency <= 449999000:
+        return '2', '05000000'
+    else:
+        return '0', '00000000'
+
+
+GPIO_PTT_DICT = {'none': None, 'left': 12, 'right': 23, '17': 17,
+                 '18': 18, '27': 27, '22': 22, '23': 23, '24': 24,
+                 '25': 25, '4': 4, '5': 5, '6': 6, '13': 13, '19': 19,
+                 '26': 26, '12': 12, '16': 16, '20': 20, '21': 21}
 FREQUENCY_LIMITS = {'A': {'min': 118.0, 'max': 524.0},
                     'B': {'min': 136.0, 'max': 1300.0}}
 MEMORY_LIMITS = {'min': 0, 'max': 999}
@@ -238,6 +271,8 @@ _lock_out_dict = _state_dict
 LOCK_OUT_DICT = STATE_DICT
 PTT_DICT = SIDE_DICT
 CTRL_DICT = SIDE_DICT
+DEFAULT_STEP_VHF = 5
+DEFAULT_STEP_UHF = 25
 
 MENU_DICT = {'beep': {'index': 1, 'values': STATE_DICT['inv']},
              'vhf_aip': {'index': 11,

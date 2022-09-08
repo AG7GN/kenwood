@@ -12,7 +12,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2022, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "1.0.4"
+__version__ = "1.0.5"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -36,7 +36,7 @@ class RigXMLRPC(object):
     class RequestHandler(SimpleXMLRPCRequestHandler):
         # Restrict to a particular path.
         rpc_paths = ('/RPC2',)
-        # Specify HTTP/1.1 so we can use a single HTTP session
+        # Specify HTTP/1.1, so we can use a single HTTP session
         protocol_version = 'HTTP/1.1'
 
         # Override the decode_request_content method so we can remove
@@ -56,7 +56,6 @@ class RigXMLRPC(object):
                                        allow_none=True,
                                        requestHandler=self.RequestHandler,
                                        logRequests=False)
-
         self.rpc_server.register_introspection_functions()
 
         # Register a function under a different name
@@ -205,29 +204,29 @@ class RigXMLRPC(object):
     def stop(self):
         # Don't kill local processes in _EXCLUDED_CLIENTS when the server
         # shuts down.
-        _EXCLUDED_CLIENTS = ('fldigi',)
+        # _EXCLUDED_CLIENTS = ('fldigi',)
         self.rpc_server.shutdown()
         # Use psutil.net_connections to extract a list of PIDs for
         # local processes that have ESTABLISHED or CLOSE-WAIT TCP
         # connections left over now that the XML-RPC server has
         # been shut down. From that list, kill those client processes
         # that are not in the _EXCLUDED_CLIENTS list.
-        leftover_pids = [tcp_conn[-1] for tcp_conn in
-                         (psutil.net_connections(kind='tcp'))
-                         if not set(_STATES).isdisjoint(tcp_conn)
-                         and (tcp_conn[-1] is not None)
-                         and (getattr(tcp_conn[4], 'port') == self.port)]
-        for pid in leftover_pids:
-            try:
-                with open(f"/proc/{pid}/comm", 'r') as f:
-                    # Get the name of the client process
-                    client_name = f.read().rstrip()
-            except IOError as _:
-                pass
-            else:
-                # Don't kill clients listed in _EXCLUDED_CLIENTS
-                if client_name not in _EXCLUDED_CLIENTS:
-                    try:
-                        kill(pid, SIGTERM)
-                    except SystemError as _:
-                        pass
+        # leftover_pids = [tcp_conn[-1] for tcp_conn in
+        #                  (psutil.net_connections(kind='tcp'))
+        #                  if not set(_STATES).isdisjoint(tcp_conn)
+        #                  and (tcp_conn[-1] is not None)
+        #                  and (getattr(tcp_conn[4], 'port') == self.port)]
+        # for pid in leftover_pids:
+        #     try:
+        #         with open(f"/proc/{pid}/comm", 'r') as f:
+        #             # Get the name of the client process
+        #             client_name = f.read().rstrip()
+        #     except IOError as _:
+        #         pass
+        #     else:
+        #         # Don't kill clients listed in _EXCLUDED_CLIENTS
+        #         if client_name not in _EXCLUDED_CLIENTS:
+        #             try:
+        #                 kill(pid, SIGTERM)
+        #             except SystemError as _:
+        #                 pass

@@ -68,8 +68,8 @@ def within_frequency_limits(side: str, freq: float) -> bool:
     """
     Checks to see if a supplied frequency is within Kenwood defined
     ranges for the supplied side (A or B) of the radio.
-    :param side: String containing A or B (the side of the radio)
-    :param freq: Float with frequency in Hz.
+    :param: side: String containing A or B (the side of the radio)
+    :param: freq: Float with frequency in Hz.
     :return: True if within defined range, False otherwise
     """
     _min = FREQUENCY_LIMITS[side]['min']
@@ -83,8 +83,8 @@ def within_frequency_limits(side: str, freq: float) -> bool:
 def same_frequency_band(freq1: int, freq2: int) -> bool:
     """
     Check if 2 frequencies in Hz are in the same amateur radio band.
-    :param freq1:  1st Frequency in Hz
-    :param freq2:  2nd Frequency in Hz
+    :param: freq1:  1st Frequency in Hz
+    :param: freq2:  2nd Frequency in Hz
     :return: True if both freq1 and freq2 are in the same band,
     False otherwise
     """
@@ -124,10 +124,12 @@ def frequency_shifts(frequency: int) -> tuple:
         return '0', '00000000'
 
 
-GPIO_PTT_DICT = {'none': None, 'left': 12, 'right': 23, '17': 17,
-                 '18': 18, '27': 27, '22': 22, '23': 23, '24': 24,
-                 '25': 25, '4': 4, '5': 5, '6': 6, '13': 13, '19': 19,
-                 '26': 26, '12': 12, '16': 16, '20': 20, '21': 21}
+GPIO_PTT_DICT = {'none': None, 'cat': None, 'digirig': None, 'left': 12,
+                 'right': 23, '4': 4, '5': 5, '6': 6, '12': 12,
+                 '13': 13, '16': 16, '17': 17, '18': 18, '19': 19,
+                 '20': 20, '21': 21, '22': 22, '23': 23, '24': 24,
+                 '25': 25, '26': 26, '27': 27
+                 }
 FREQUENCY_LIMITS = {'A': {'min': 118.0, 'max': 524.0},
                     'B': {'min': 136.0, 'max': 1300.0}}
 MEMORY_LIMITS = {'min': 0, 'max': 999}

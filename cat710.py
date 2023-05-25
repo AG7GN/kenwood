@@ -1,17 +1,14 @@
 import io
 import re
 import sys
-from os import environ
-
 from common710 import *
 from queue import Queue
-from gpiozero import OutputDevice
 
 __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2022, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "2.0.4"
+__version__ = "2.0.6"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -27,13 +24,69 @@ class Cat(object):
     are documented at https://github.com/LA3QMA/TM-V71_TM-D710-Kenwood
     """
 
-    def __init__(self, serial_port: object, ptt_pin: str):
+    class CatPtt(object):
+        """
+        Implements PTT via CAT command to serial port. Note that sending
+        the CAT command 'TX' will cause the mic audio to be transmitted,
+        not audio received on the DATA port
+        """
+
+        def __init__(self, job_queue: Queue):
+            self.job_queue = job_queue
+            self.ptt_active = 0
+
+        def on(self):
+            if self.job_queue is not None:
+                self.job_queue.put(['cat_ptt', 'TX'])
+                self.ptt_active = 1
+
+        def off(self):
+            if self.job_queue is not None:
+                self.job_queue.put(['cat_ptt', 'RX'])
+                self.ptt_active = 0
+
+        @property
+        def value(self):
+            # There is no way to query the radio for PTT state,
+            # so use the self.ptt_active variable set in the 'on' and
+            # 'off' functions above for status.
+            return self.ptt_active
+
+    class DigirigPtt(object):
+        """
+        Implements PTT via assertion of RTS in CAT serial port. DigiRig
+        devices use the RTS signal on the serial port to drive a circuit
+        that controls PTT in the Mini-DIN6 connector. For CAT to work,
+        a special serial cable that loops the RTS pin back to the CTS
+        pin on the radio side must be used between the radio and the
+        DigiRig device. This cable can be purchased from digirig.net.
+        """
+
+        def __init__(self, port: object):
+            self.port = port
+
+        def on(self):
+            self.port.rts = True
+
+        def off(self):
+            self.port.rts = False
+
+        @property
+        def value(self):
+            return int(self.port.rts)
+
+    def __init__(self, serial_port: object, ptt_pin: str, **kwargs):
         """
         Initializes a BufferedRWPair object that wraps a serial object.
-        Wrapping the serial port allows customization of the end-of-line
-        character used by the radio
+        Wrapping the serial port object allows customization of the
+        end-of-line character used by the radio
         :param serial_port: Serial object
         """
+        if kwargs['job_queue']:
+            self.job_queue = kwargs['job_queue']
+        else:
+            self.job_queue = None
+        self.gui = None
         self.ser = serial_port
         sio = io.TextIOWrapper(io.BufferedRWPair(self.ser, self.ser),
                                newline='\r')
@@ -62,26 +115,63 @@ class Cat(object):
                       'speed': None,
                       'data_side': None,
                       'gpio': None,
-                      'id': ''
+                      'id': '',
+                      'info': {'model': '',
+                               'firmware': {'main': '', 'panel': ''},
+                               'serial': ''
+                               }
                       }
         self.ptt_pin = ptt_pin
         if self.ptt_pin == 'none':
-            self.state['gpio'] = None
+            # self.state['gpio'] = None
             self.ptt = None
+        elif self.ptt_pin == 'digirig':
+            self.ptt = self.DigirigPtt(self.ser)
+        elif self.ptt_pin == 'cat':
+            self.ptt = self.CatPtt(self.job_queue)
         else:
-            self.state['gpio'] = GPIO_PTT_DICT[self.ptt_pin]
-            self.ptt = OutputDevice(self.state['gpio'],
-                                    active_high=True,
-                                    initial_value=False)
+            try:
+                from gpiozero import OutputDevice
+            except (ModuleNotFoundError, Exception):
+                print(f"{stamp()}: Python3 gpiozero module not found. "
+                      f"Ignoring PTT GPIO settings",
+                      file=sys.stderr)
+                self.ptt_pin = None
+                self.state['gpio'] = None
+                self.ptt = None
+            else:
+                from gpiozero import BadPinFactory
+                self.state['gpio'] = GPIO_PTT_DICT[self.ptt_pin]
+                try:
+                    self.ptt = OutputDevice(self.state['gpio'],
+                                            active_high=True,
+                                            initial_value=False)
+                except BadPinFactory:
+                    print(f"{stamp()}: No GPIO pins found. "
+                          f"Ignoring PTT GPIO settings",
+                          file=sys.stderr)
+                    self.ptt_pin = None
+                    self.state['gpio'] = None
+                    self.ptt = None
+
         self.reply_queue = Queue()
+
+    @property
+    def gui_root(self) -> object:
+        """
+        Returns the gui tkinter root to be used for asking for
+        user input. Returns None of there is no GUI
+        """
+        return self.gui
+
+    @gui_root.setter
+    def gui_root(self, root: object):
+        self.gui = root
 
     def set_ptt(self, turn_on: bool):
         """
-        If radio side (self.ptt object) was supplied as a parameter,
-        change the corresponding GPIO pin to True (PTT on) or
-        False (PTT off).
+        Control the state of PTT
         :param turn_on: Desired state of PTT
-        :return: None
         """
         if self.ptt is not None:
             if turn_on:
@@ -91,8 +181,8 @@ class Cat(object):
 
     def get_ptt(self):
         """
-        Returns state of PTT GPIO.
-        :return: 1 if high, 0 if low or self.ptt is None
+        Returns state of PTT.
+        :return: 1 if PTT is active, 0 if not active or if self.ptt is None
         """
         if self.ptt is None:
             return 0
@@ -102,7 +192,7 @@ class Cat(object):
     def query(self, request: str) -> tuple:
         """
         Sends CAT command to Kenwood radio and returns reply as a tuple.
-        Kenwood CAT commands for the TM-D710G and Tm-V71A begin with a
+        Kenwood CAT commands for the TM-D710G and TM-V71A begin with a
         2 alpha character string (the command) optionally followed by
         one or more arguments, followed by a carriage return '\r'.
         The radio returns a single '?' if the radio didn't understand
@@ -110,7 +200,7 @@ class Cat(object):
         followed by the radio's answer: a comma separated string.
         See https://github.com/LA3QMA/TM-V71_TM-D710-Kenwood for
         details.
-        :param request: String containing CAT command to send
+        :param: request: String containing CAT command to send to radio
         :return: Tuple containing radio's reply to the command. Returns
                 empty tuple if radio returns '?' (indicating an unknown
                 command) or if there's a problem communicating with the
@@ -146,7 +236,7 @@ class Cat(object):
     def handle_query(self, cmd: str) -> list:
         """
         Wrapper for the query method.
-        :param cmd: String to pass to query method
+        :param: cmd: String to pass to query method
         :return: List containing the output of the radio command, or
                  None if the command failed.
         """
@@ -159,56 +249,69 @@ class Cat(object):
         else:
             return result
 
-    @staticmethod
-    def ask(ask_type: str, ask_msg: str):
+    def ask(self, ask_type: str, ask_msg: str):
         """
-        If X Windows environment detected, pop up a window with
+        If GUI exists, pop up a window with
         the warning message, otherwise print message to stderr.
-        :param ask_type: str of 'yesnocancel' or 'okcancel'. Used to determine
+        :param: ask_type: str of 'yesnocancel' or 'okcancel'. Used to determine
         messagebox type. Default is okcancel.
-        :param ask_msg: String containing warning message
+        :param: ask_msg: String containing warning message
         :return: True|False if user clicks Yes|No respectively, None if
                  user clicks Cancel
         """
         if ask_type not in ('okcancel', 'yesnocancel'):
             return False
-        if environ.get('DISPLAY', '') == '':
-            # X not running. Print ask_msg to stderr and don't prompt
-            # for answer
+        if self.gui is None:
+            # Print ask_msg to stderr and don't prompt for answer
+            # (assume YES)
             print(f"{stamp()}: {ask_msg}: YES", file=sys.stderr)
             return True
         else:
-            # X running. Use existing tkinter root if set
+            # X running or this is Windows.
             from tkinter import messagebox
-            import tkinter as tk
-            ask_root = tk.Tk()
-            ask_root.withdraw()
             if ask_type == 'okcancel':
                 result = messagebox.askokcancel(title=f"Confirm",
                                                 message=ask_msg,
-                                                parent=ask_root)
+                                                parent=self.gui)
             elif ask_type == 'yesnocancel':
                 result = messagebox.askyesnocancel(title=f"Confirm",
                                                    message=ask_msg,
-                                                   parent=ask_root)
+                                                   parent=self.gui)
             else:
                 result = False
-            ask_root.destroy()
             return result
 
-    def set_id(self, radio_id: str):
-        self.state['id'] = radio_id
+    @property
+    def info(self) -> dict:
+        """
+        :return: dictionary containing model, serial and firmware version(s)
+        """
+        return self.state['info']
 
-    def get_id(self) -> str:
-        return self.state['id']
+    @info.setter
+    def info(self, answer: tuple):
+        """
+        Populate model, serial, and firmware versions in state dictionary
+        :param answer: string containing CAT command result from radio
+        """
+        if answer[0] == 'AE':
+            self.state['info']['serial'] = answer[1].split(',')[0]
+        elif answer[0] == 'ID':
+            self.state['info']['model'] = answer[1]
+        elif answer[0] == 'FV':
+            if answer[1] == '0':
+                self.state['info']['firmware']['main'] = answer[3]
+            if answer[1] == '1':
+                self.state['info']['firmware']['panel'] = answer[3]
+        else:
+            self.state['info']['firmware']['panel'] = "N/A"
 
     def update_dictionary(self) -> dict:
         """
         Queries the radio for several parameters that are used to
-        populate a state dictionary, which maps values to the GUI.
-        Several commands are needed to obtain all the required
+        populate a state dictionary, which maps values to the onscreen
+        display. Several commands are needed to obtain all the required
         information.
-
         :return: dictionary with the screen parameters. The dictionary
         is defined and initialized in __init__() method.
         """
@@ -303,8 +406,8 @@ class Cat(object):
                 except IndexError as _:
                     raise
             # else:
-                #     print(f"{stamp()}: ERROR: Nothing in memory",
-                #           file=sys.stderr)
+            #     print(f"{stamp()}: ERROR: Nothing in memory",
+            #           file=sys.stderr)
             elif MODE_DICT['map'][result[2]] == 'VFO':
                 # This side is in VFO mode. Retrieve FO data
                 result = self.handle_query(f"FO {s}")
@@ -404,8 +507,9 @@ class Cat(object):
 
     def run_job(self, job: list, msg_queue: Queue) -> list:
         """
-        Accepts a job list and executes the corresponding Kenwood
-        CAT commmands to fulfill the job task
+        Accepts a job list and constructs the corresponding Kenwood
+        CAT command string needed to fulfill the job task. Sends CAT
+        command string to handle_query.
         :param job: list containing job
         :param msg_queue: Queue to which to send status messages
         :return: The job that was sent as an argument, or if the job
@@ -416,7 +520,8 @@ class Cat(object):
 
         def get_arg_list() -> list:
             """
-            Some CAT commands require interim radio queries to construct
+            Creates a CAT command argument list because some CAT
+            commands require interim CAT queries to construct
             the user's query.
             :return: List containing query results, or empty list if
             the query failed.
@@ -679,7 +784,7 @@ class Cat(object):
             arg_list = get_arg_list()  # Get the channel data for current mode
             if not arg_list or arg_list[0] == 'N':
                 return []
-            if arg_list[0] in ('FO', ):
+            if arg_list[0] in ('FO',):
                 frequency = int(arg_list[2])
                 step = int(STEP_DICT['map'][arg_list[3]]) * 1000
                 if job[0] == 'down':
@@ -709,7 +814,7 @@ class Cat(object):
                                    f"{stamp()}: Frequency "
                                    f"must be between {float(FREQUENCY_LIMITS[job[1]]['min']):.3f} "
                                    f"and {float(FREQUENCY_LIMITS[job[1]]['max']):.3f} MHz"])
-            elif arg_list[0] in ('ME', ):
+            elif arg_list[0] in ('ME',):
                 ctrl_moved_temporarily = False
                 if self.state[job[1]]['ctrl'] != 'CTRL':
                     ctrl_moved_temporarily = True
@@ -727,6 +832,7 @@ class Cat(object):
                     return []
                 if ctrl_moved_temporarily:
                     # Restore original CTRL state
+                    # noinspection PyUnboundLocalVariable
                     if not self.handle_query(restore_arg):
                         return []
             else:
@@ -750,6 +856,9 @@ class Cat(object):
             else:
                 arg = "DW"
             if not self.handle_query(arg):
+                return []
+        elif job[0] == 'cat_ptt':
+            if not self.handle_query(job[1]):
                 return []
         elif job[0] == 'command':
             # Wait for reply_queue to empty before accepting command.

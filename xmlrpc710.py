@@ -4,15 +4,15 @@ from xmlrpc.server import SimpleXMLRPCServer
 from xmlrpc.server import SimpleXMLRPCRequestHandler
 from common710 import within_frequency_limits
 from common710 import MODULATION_DICT
-import psutil
-from os import kill
-from signal import SIGTERM
+# import psutil
+# from os import kill
+# from signal import SIGTERM
 
 __author__ = "Steve Magnuson AG7GN"
-__copyright__ = "Copyright 2022, Steve Magnuson"
+__copyright__ = "Copyright 2023, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "1.0.5"
+__version__ = "1.0.7"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -22,8 +22,9 @@ _STATES = ('CLOSE_WAIT', 'ESTABLISHED')
 class SimpleThreadedXMLRPCServer(ThreadingMixIn, SimpleXMLRPCServer):
     """
     Implements a threaded XMLRPC server so more than one client
-    can connect at a time
+    can connect at a time.
     """
+    pass
     # ThreadingMixIn.block_on_close = True
 
 
@@ -39,15 +40,19 @@ class RigXMLRPC(object):
         # Specify HTTP/1.1, so we can use a single HTTP session
         protocol_version = 'HTTP/1.1'
 
-        # Override the decode_request_content method so we can remove
-        # clientid if present in POST from client
         def decode_request_content(self, data):
+            """
+            Override the decode_request_content method which allows removal
+            of clientid if present in POST from client
+            :param data: string to examine
+            :return:
+            """
             data = SimpleXMLRPCRequestHandler.decode_request_content(self,
                                                                      data)
             data = re.sub(b'<\?clientid=.*\?>', b'', data)
             return data
 
-    def __init__(self, port: int, rig: object, cmd_queue: object):
+    def __init__(self, port: int, rig, cmd_queue):
         self.port = port
         self.rig = rig
         self.cmd_queue = cmd_queue
@@ -60,7 +65,7 @@ class RigXMLRPC(object):
 
         # Register a function under a different name
         def get_xcvr():
-            return self.rig.get_id()
+            return self.rig.info['model']
         self.rpc_server.register_function(get_xcvr, 'rig.get_xcvr')
 
         def get_modes():
@@ -181,6 +186,12 @@ class RigXMLRPC(object):
         self.rpc_server.register_function(get_power, 'rig.get_power')
 
         def run_command(cmd: str):
+            """
+            Handle commands received from clients that send actual
+            CAT command strings rather than XML-RPC calls.
+            :param cmd: string containing CAT command
+            :return:
+            """
             self.cmd_queue.put(['command', cmd])
             while self.rig.reply_queue.empty():
                 pass

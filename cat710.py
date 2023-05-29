@@ -75,6 +75,101 @@ class Cat(object):
         def value(self):
             return int(self.port.rts)
 
+    class CM108Ptt(object):
+        """
+        Implements PTT via GPIO on CM108/CM119 sound interfaces such as
+        the DRA series. The most common GPIO pin for PTT on these
+        devices is 3, but the user can specify any GPIO pin between 1
+        and 8. 3 is the default
+        """
+        def __init__(self, pin: int):
+            try:
+                import hid
+            except ModuleNotFoundError:
+                print(f"{stamp()}: Python3 hidapi module not found.", file=sys.stderr)
+                return
+            self.pin = pin
+            self.device = None
+            self.ptt_active = 0
+            # CM108 info: https://github.com/nwdigitalradio/direwolf/blob/master/cm108.c)
+            mask = 1 << (self.pin - 1)
+            self.PTT_on = bytearray([0, 0, mask, mask, 0])
+            self.PTT_off = bytearray([0, 0, mask, 0, 0])
+            self.CM108_ready = False
+            # CM1xx sound card Vendor ID
+            self.vendor_id = 0x0d8c
+            # Product IDs with known GPIO capability from the CM1xx family
+            self.product_ids = (0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf,
+                                0x139, 0x12, 0x13, 0x13a, 0x13c)
+            self.product_id = None
+            for device_dict in hid.enumerate():
+                if self.vendor_id in device_dict.values():
+                    if device_dict['product_id'] in self.product_ids:
+                        self.product_id = device_dict['product_id']
+                        # print(f"{stamp()}: Found CM108 device "
+                        #       f"0x{self.vendor_id:04x}:0x{self.product_id:04x}",
+                        #       file=sys.stderr)
+                        break
+            if self.product_id is None:
+                print(f"{stamp()}: No CM108 device with GPIO found", file=sys.stderr)
+                return
+            else:
+                self.device = hid.device()
+                # Verify that we can open the HID device before
+                # claiming victory
+                if self._open():
+                    self._close()
+                    self.CM108_ready = True
+
+        def _open(self) -> bool:
+            try:
+                self.device.open(self.vendor_id, self.product_id)
+            except (OSError, IOError) as e:
+                print(f"{stamp()}: Unable to open CM108 device "
+                      f"0x{self.vendor_id:04x}:0x{self.product_id:04x}: {e}",
+                      file=sys.stderr)
+                return False
+            else:
+                self.device.set_nonblocking(1)
+                return True
+
+        def _close(self):
+            self.device.close()
+
+        def on(self):
+            if self._open():
+                wrote = self.device.write(self.PTT_on)
+                if wrote == len(self.PTT_on):
+                    self.ptt_active = 1
+                else:
+                    self.ptt_active = 0
+                    print(f"{stamp()}: Unable to write to CM108 GPIO {self.pin}",
+                          file=sys.stderr)
+                self._close()
+
+        def off(self):
+            if self._open():
+                previous_ptt_state = self.ptt_active
+                wrote = self.device.write(self.PTT_off)
+                if wrote == len(self.PTT_off):
+                    self.ptt_active = 0
+                else:
+                    print(f"{stamp()}: Unable to write to CM108 GPIO {self.pin}",
+                          file=sys.stderr)
+                    if previous_ptt_state == 0:
+                        self.ptt_active = 0
+                    else:
+                        self.ptt_active = 1
+                self._close()
+
+        @property
+        def value(self) -> int:
+            return self.ptt_active
+
+        @property
+        def ready(self) -> bool:
+            return self.CM108_ready
+
     def __init__(self, serial_port: object, ptt_pin: str, **kwargs):
         """
         Initializes a BufferedRWPair object that wraps a serial object.
@@ -129,12 +224,26 @@ class Cat(object):
             self.ptt = self.DigirigPtt(self.ser)
         elif self.ptt_pin == 'cat':
             self.ptt = self.CatPtt(self.job_queue)
+        elif self.ptt_pin.startswith('cm108'):
+            cm108 = self.ptt_pin.split(':')
+            try:
+                cm108_gpio = int(cm108[1])
+            except (ValueError, IndexError):
+                # No GPIO pin specified. Use 3, the most common
+                # for PTT on CM1xx
+                cm108_gpio = 3
+            self.ptt = self.CM108Ptt(cm108_gpio)
+            if not self.ptt.ready:
+                print(f"{stamp()}: Unable to locate or init CM108. "
+                      f"Ignoring CM108 PTT settings.",
+                      file=sys.stderr)
+                self.ptt = None
         else:
             try:
                 from gpiozero import OutputDevice
             except (ModuleNotFoundError, Exception):
                 print(f"{stamp()}: Python3 gpiozero module not found. "
-                      f"Ignoring PTT GPIO settings",
+                      f"Ignoring GPIO PTT settings",
                       file=sys.stderr)
                 self.ptt_pin = None
                 self.state['gpio'] = None

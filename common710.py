@@ -124,7 +124,10 @@ def frequency_shifts(frequency: int) -> tuple:
         return '0', '00000000'
 
 
-GPIO_PTT_DICT = {'none': None, 'cat': None, 'digirig': None, 'left': 12,
+GPIO_PTT_DICT = {'none': None, 'cat': None, 'cm108': None, 'cm108:1': None,
+                 'cm108:2': None, 'cm108:3': None, 'cm108:4': None,
+                 'cm108:5': None, 'cm108:6': None, 'cm108:7': None,
+                 'cm108:8': None, 'digirig': None, 'left': 12,
                  'right': 23, '4': 4, '5': 5, '6': 6, '12': 12,
                  '13': 13, '16': 16, '17': 17, '18': 18, '19': 19,
                  '20': 20, '21': 21, '22': 22, '23': 23, '24': 24,

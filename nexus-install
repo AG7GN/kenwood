@@ -1,7 +1,26 @@
 #!/usr/bin/env bash
 #
 #
-VERSION="1.1.0"
+VERSION="1.2.0"
+sudo apt install -y libusb-dev python3-hidapi
+if ! grep -q 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0d8c"' /etc/udev/rules.d/*.rules
+then
+	cat > /tmp/udev.rules.temp <<EOF
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0d8c", GROUP="audio", MODE="0660"
+EOF
+fi
+if ! grep -q 'SUBSYSTEM=="usb", ATTRS{idVendor}=="0d8c"' /etc/udev/rules.d/*.rules
+then
+	cat >> /tmp/udev.rules.temp <<EOF
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0d8c", GROUP="audio", MODE="0660"
+EOF
+fi
+if [[ -s /tmp/udev.rules.temp  ]]
+then
+	sudo mv -f /tmp/udev.rules.temp /etc/udev/rules.d/99-cmedia-gpio.rules
+	sudo udevadm control --reload-rules
+	sudo udevadm trigger
+fi
 sudo cp -f kenwood/710.sh /usr/local/bin/
 sudo cp -f kenwood/*.py /usr/local/bin/
 sudo cp -f kenwood/*.png /usr/share/pixmaps/

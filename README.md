@@ -1,11 +1,17 @@
 # Kenwood CAT control for TM-D710G and TM-V71A
-VERSION 20230519
+VERSION 20230529
 
 This script allows the user to control various parameters on the Kenwood TM-V71A and TM-D710G radios via the **PC** serial port on the back of the radio main unit (not the control panel). Kenwood does not officially support CAT on these radios, but the commands have been [extensively documented by LA3QMA](https://github.com/LA3QMA/TM-V71_TM-D710-Kenwood). 
 
-Among the CAT commands available are **TX** and **RX**, which activate and deactivate PTT on whatever side of the radio is currently set to PTT. Note that these commands transmit mic audio and not audio coming in via the radio's mini-DIN6 DATA port. When PTT is activated via the DATA port by bringing the PTT pin to ground, the DATA port audio is transmitted and the mic audio is muted. This activation of PTT is independent of whether the radio's displayed PTT indicator is on that same side of the radio designated as the data side. This is convenient when you want to simultaneously use, for example, the left side of the radio for voice comms and the right for digital without having to constantly move PTT between the A and B sides when you want to transmit voice or data.
+Among the CAT commands available are **TX** and **RX**, which activate and deactivate TX on whatever side of the radio is currently set to PTT. Note that these commands transmit mic audio and not audio coming in via the radio's mini-DIN6 DATA port. When PTT is activated via the **DATA** port by bringing the PTT pin to ground, the DATA port audio is transmitted and the mic audio is muted. This activation of PTT is independent of whether the radio's displayed PTT indicator is on that same side of the radio designated as the data side. This is convenient when you want to simultaneously use, for example, the left side of the radio for voice comms and the right for digital without having to constantly move PTT between the A and B sides when you want to transmit voice or data.
 
-This application implements an XML-RPC server, making the application appear as if  [Flrig](http://w1hkj.com/flrig-help/) is running to clients such as [Fldigi](http://w1hkj.com/FldigiHelp/index.html) or [Hamlib's](https://hamlib.github.io) **rigctld** (using the Hamlib **"flrig"** rig ). Keeping the above PTT behaviors in mind, this application is specifically designed for use in conjunction with the DATA port by offering the ability to simultaneously use the DATA port for PTT and use the PC port for CAT control of other radio functions. When an XML-RPC client sends the RPC command to activate PTT, the script can optionally (using the `--rig <GPIO-pin>` argument) to control a GPIO pin on a Pi to activate, via a circuit driven by that GPIO pin, PTT in the radio's Mini-DIN6 DATA connector. Likewise, if `--rig digirig` is used, when the script receives an RPC command to activate PTT the script will assert __RTS__ on the serial port to the [DigiRig](https://digirig.net). In the [DigiRig](https://digirig.net) device, when the computer asserts __RTS__, the DigiRig activates a circuit that turns on PTT in the radio's DATA connector; **RTS** is not asserted on the *radio's* PC port in this case. The special DigiRig-to-radio-PC-port cable actually has RTS looped back to CTS so CAT control functions work.
+This application implements an XML-RPC server, making the application appear as if  [Flrig](http://w1hkj.com/flrig-help/) is running to clients such as [Fldigi](http://w1hkj.com/FldigiHelp/index.html) or [Hamlib's](https://hamlib.github.io) **rigctld** (using the Hamlib **"flrig"** rig ). Keeping the above PTT behaviors in mind, this application is specifically designed for use in conjunction with the DATA port in certain scenarios by offering the ability to simultaneously use the DATA port for PTT and use the PC port for CAT control of other radio functions. 
+
+When an XML-RPC client sends the RPC command to activate PTT, the script can optionally (using the `--rig <GPIO-pin>` argument) to control a GPIO pin on a Pi to activate, via a circuit driven by that GPIO pin, PTT in the radio's Mini-DIN6 DATA connector. 
+
+If `--rig digirig` is used, when the application receives an RPC command to activate PTT it will assert __RTS__ on the serial port to the [DigiRig](https://digirig.net). In the [DigiRig](https://digirig.net) device, when the computer asserts __RTS__, the DigiRig activates a circuit that turns on PTT in the radio's DATA connector; **RTS** is not asserted on the *radio's* PC port in this case. The special DigiRig-to-radio-PC-port cable actually has RTS looped back to CTS so CAT control functions work.
+
+If `--rig cm108[:1-8]` is used, when the application receives an RPC command to activate PTT it will activate a GPIO pin on a CM108/CM119 sound card such as found in the DRA series of products. The GPIO pin used can be specified (`--rig com108:4`, for example, will use GPIO 4). If not specified, GPIO 3 will be used as it is the most common pin for PTT control in these sound devices. If multiple CM108/CM119 devices are connected to the computer, the first one the application finds will be used.
 
 ## Releases
 
@@ -18,25 +24,58 @@ The Windows `.exe` might be problematic to run on your system since they are uns
 
 ## Installation
 
-### As Python scripts (all operating systems)
+### As Python scripts 
 
-1. [Download and Install Python](https://www.python.org/downloads/) 3.9 or later if it is not already installed. Windows users can install Python from the Microsoft Store. 
-1. Set up a virtual environment [(venv)](https://realpython.com/python-virtual-environments-a-primer/) as desired.
-1. Install the **pyserial** package using **pip** or your OSs package manager.  To install via **pip**:
+#### Linux (including Raspberry Pi)
 
-		pip install pyserial
+1. Python3 (3.8 or later) should already installed. Install it using your package manager if it isn't.
+
+1. Install supporting packages (`apt` installation commands shown; use your distribution's package manager):
+
+		sudo apt install libusb-dev python3-hidapi
+
+1. Create a file `/etc/udev/rules.d/99-cmedia-gpio.rules` (root privileges needed) with these lines:
 		
-1. Clone this repository (`git clone https://github.com/AG7GN/kenwood`) into your `venv` or download the source `zip` file into your venv.
+		SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0d8c", GROUP="audio", MODE="0660"
+		SUBSYSTEM=="usb", ATTRS{idVendor}=="0d8c", GROUP="audio", MODE="0660"
+		
+	then run:
+	
+		sudo udevadm control --reload-rules
+		sudo udevadm trigger
+
+#### Windows
+
+1. [Download and Install Python](https://www.python.org/downloads/) 3.8 or later if it is not already installed. The easiest way is to install it from the Microsoft Store. 
+
+1. Set up a virtual environment [(venv)](https://realpython.com/python-virtual-environments-a-primer/) as desired.
+
+1. Install modules using **pip**:
+
+		pip install pyserial hidapi
+		
+1. Download the source `zip` file into your `venv`, or clone this repository (`git clone https://github.com/AG7GN/kenwood`) into your `venv`.
+
+#### MacOS
+
+1. Python 3 should already be installed. If it's not, [download and install it](https://www.python.org/downloads/).
+
+1. Set up a virtual environment [(venv)](https://realpython.com/python-virtual-environments-a-primer/) as desired.
+
+1. [Install Homebrew](https://brew.sh), then run:
+
+		brew install hidapi libusb
+		pip3 install pyserial hidapi
 
 ### As binaries
 
 The releases include `710.exe`, which was built using `pyinstaller` and Python 3.11. Since these binaries are not signed, Microsoft doesn't recognize it as a "safe" app, so your ability to use it may vary. 
 
-- You can make your own binary by following the instructions in the previous **As Python Scripts** section, then doing the following:
+- You can make your own binary for your OS by following the instructions in the previous **As Python Scripts** section, then doing the following:
 
 	- Install the `pyinstaller` package:
 	
-			pip install pyinstaller
+			pip3 install pyinstaller
 			
 	- Note the output of the installation process. It will tell you where the `pyinstaller` binary was installed. Add that directory to your PATH or write it down somewhere.
 	- Change directories to the location where the downloaded 710 python files are stored (from your `git clone` or unzip).
@@ -44,13 +83,14 @@ The releases include `710.exe`, which was built using `pyinstaller` and Python 3
 	
 			pyinstaller --onefile 710.py
 	
-		Note that if you didn't add `pylinstaller`'s location to your path, you might have to use the full path to `pyinstaller` in order for this to work.
+		Note that if you didn't add `pyinstaller`'s location to your path, you might have to use the full path to `pyinstaller` in order for this to work.
 		
 		`pyinstaller` will create a `dist` folder and in that folder will be the binary for whatever OS you are using. For example, it will create `710.exe` if run on Windows or `710.app` if run on MacOS.
 	- Copy that binary to your applications folder or wherever you store your applications.
 
 ## Recent significant changes
 
+1. Supports PTT using CM108/CM119 sound cards with GPIO (DRA series sound cards, for example).
 1. GUI looks more uniform across Linux, MacOS and Windows.
 1. Improvements to the way serial ports are discovered in Windows.
 1. Supports [DigiRig](https://digirig.net).
@@ -132,17 +172,17 @@ or, if using the binary on Windows:
 
 The output will be similar to this:
 ```
-usage: 710.py [-h] [-v]
-              [-p {/dev/gps0,/dev/kenwoodTM-D710G,/dev/ttyUSB0,/dev/serial0,/dev/serial1,/dev/ttyS0,/dev/ttyAMA0,/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0}]
+usage: 710.py [-h] [-v] [-p {/dev/gps0,/dev/kenwoodTM-D710G,/dev/ttyUSB0,/dev/serial0,/dev/serial1,/dev/ttyS0,/dev/ttyAMA0}]
               [-b {300,1200,2400,4800,9600,19200,38400,57600}] [-s] [-l x:y] [-x {1024-65535}]
-              [-r {none,cat,digirig,left,right,4,5,6,12,13,16,17,18,19,20,21,22,23,24,25,26,27}] [-c COMMAND]
+              [-r {none,cat,cm108,cm108:1,cm108:2,cm108:3,cm108:4,cm108:5,cm108:6,cm108:7,cm108:8,digirig,left,right,4,5,6,12,13,16,17,18,19,20,21,22,23,24,25,26,27}]
+              [-c COMMAND]
 
 CAT control for Kenwood TM-D710G/TM-V71A
 
 optional arguments:
   -h, --help            show this help message and exit
   -v, --version         show program's version number and exit
-  -p {/dev/gps0,/dev/kenwoodTM-D710G,/dev/ttyUSB0,/dev/serial0,/dev/serial1,/dev/ttyS0,/dev/ttyAMA0,/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0}, --port {/dev/gps0,/dev/kenwoodTM-D710G,/dev/ttyUSB0,/dev/serial0,/dev/serial1,/dev/ttyS0,/dev/ttyAMA0,/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0}
+  -p {/dev/gps0,/dev/kenwoodTM-D710G,/dev/ttyUSB0,/dev/serial0,/dev/serial1,/dev/ttyS0,/dev/ttyAMA0}, --port {/dev/gps0,/dev/kenwoodTM-D710G,/dev/ttyUSB0,/dev/serial0,/dev/serial1,/dev/ttyS0,/dev/ttyAMA0}
                         Serial port connected to radio (default: /dev/gps0)
   -b {300,1200,2400,4800,9600,19200,38400,57600}, --baudrate {300,1200,2400,4800,9600,19200,38400,57600}
                         Serial port speed (must match radio!) (default: 57600)
@@ -154,7 +194,7 @@ optional arguments:
                         TCP port on which to listen for XML-RPC
                         rig control calls from clients such as
                         Fldigi or Hamlib rigctl[d]. (default: 12345)
-  -r {none,cat,digirig,left,right,4,5,6,12,13,16,17,18,19,20,21,22,23,24,25,26,27}, --rig {none,cat,digirig,left,right,4,5,6,12,13,16,17,18,19,20,21,22,23,24,25,26,27}
+  -r {none,cat,cm108,cm108:1,cm108:2,cm108:3,cm108:4,cm108:5,cm108:6,cm108:7,cm108:8,digirig,left,right,4,5,6,12,13,16,17,18,19,20,21,22,23,24,25,26,27}, --rig {none,cat,cm108,cm108:1,cm108:2,cm108:3,cm108:4,cm108:5,cm108:6,cm108:7,cm108:8,digirig,left,right,4,5,6,12,13,16,17,18,19,20,21,22,23,24,25,26,27}
                         PTT device to use if you want to control 
                         PTT via an XML-RPC 'rig.set_ptt' call.
                         Pi users can specify the BCM GPIO pin number
@@ -170,11 +210,19 @@ optional arguments:
                         RTS on the serial port because on the DigiRig,
                         RTS controls PTT via a separate circuit.
                         
-                        'cat' will, when 'rig.set_ptt' calls are received,
-                        send the 'TX' or 'RX' CAT command to the radio
-                        to control PTT. Note that this will activate PTT
+                        'cm108[:1-8]' will activate a CM108 GPIO for PTT on
+                        CM108/CM119 sound interfaces such as the DRA
+                        series of sound cards. You can specify the CM108
+                        GPIO pin by appending ':x' to 'cm108' where x is
+                        1 through 8 inclusive. 'cm108' by itself will use
+                        GPIO 3, the most commonly used GPIO for CM108 PTT.
+                        If more than one CM108 sound card is attached,
+                        the first one found will be used.
+                        
+                        'cat' will send the 'TX' or 'RX' CAT command to the
+                        radio to control PTT. Note that this will transmit
                         on the side on which PTT is set and will transmit
-                        mic audio, *not* the DATA port audio!
+                        mic audio, *not* DATA port audio!
                         
                          (default: none)
   -c COMMAND, --command COMMAND
@@ -194,13 +242,16 @@ The script will listen on port `12345` for XML-RPC calls from a client program s
 
 ### PTT control
 
-When an RPC call to control PTT comes from a client application, the application will handle PTT as directed by the `-r <ptt>` option. By default, the script will ignore RPC call requests to control PTT `(-r none)`, meaning you controll PTT by some other means.
+When an RPC (remote Procedure Call) to control PTT is received from a client, the application will handle PTT as directed by the `-r <ptt>` option. By default, the script will ignore RPC requests to control PTT `(-r none)`, meaning you are controlling PTT by some other means.
 
 On Linux hosts, particularly Raspberry Pis, you can select a BCM GPIO pin number `(-r <pin>)` as described in the help output above. This feature is handy if you have wired a GPIO pin to an external circuit that controls PTT on the radio's Mini-DIN6 DATA connector. When an RPC call to control PTT comes from a client application, the script will then set the configured GPIO pin to high to activate the PTT circuit and low to deactivate the PTT curcuit.
 
 If you're using the [DigiRig](https://digirig.net) and associated special serial cable between the DigiRig and radio, use the `-r digirig` setting. This will allow simultanenous CAT control of the radio via the DigiRig's SERIAL port and PTT control of the radio via the DigiRig's AUDIO port connected to the radio's DATA port.
 
-If you use the `-r cat` argument, the script will send the Kenwood **TX** and **RX** commands to the radio when RPC calls to control PTT are received from a client application. **IMPORTANT:** TX will activate on whatever side of the radio currently has PTT. Also, the mic audio will be transmitted, not audio from the radio's DATA port!
+If `-r cm108[:1-8]` is used, when the application receives an RPC to activate PTT it will activate a GPIO pin on a CM108/CM119 sound card such as found in the DRA series of products. The GPIO pin used can be specified (`-r com108:4`, for example, will use GPIO 4). If not specified, GPIO 3 will be used as it is the most common pin for PTT control in these sound devices. If multiple CM108/CM119 devices are connected to the computer, the first one the application finds will be used.
+
+If you use the `-r cat` argument, the script will send the Kenwood **TX** and **RX** commands to the radio when RPC calls to control PTT are received from a client application. 
+**IMPORTANT:** TX will activate on whatever side of the radio currently has PTT and mic audio will be transmitted, not audio from the radio's DATA port!
 
 ### Linux and Mac: 710.py and 710.sh
 
@@ -241,7 +292,7 @@ The `710.sh` script requires `710.py` to talk to the radio. It does not start th
 
 	1. Changing the frequency, modulation, step, tone, tone frequency, reverse or shift in the GUI while in memory mode will prompt the user to modify the memory or copy the memory contents to VFO and then make the modifications. While in VFO mode, if the user attempts to change the frequency to one that is not in the band currently set on that side of the radio, the user will be prompted to either modify the memory or abort the change.
 	
-	1. If you use the shell script (`710.sh`) to change the frequency, the script will first change the mode to VFO (if it's not already in that mode) and attempt to set the desired frequency. If the desired frequency is not in the currently set frequency band for that side, the frequency will not be changed. 
+	1. If you use the shell script (`710.sh`) on Linux/MacOS to change the frequency, the script will first change the mode to VFO (if it's not already in that mode) and attempt to set the desired frequency. If the desired frequency is not in the currently set frequency band for that side, the frequency will not be changed. 
 
 	The workaround for the inability to use CAT to change the frequency band is to set your commonly used frequencies in memory locations and use the scripts to put the radio in MR mode and set a certain memory channel. One easy way to program the radio's memories is to use `chirp`. `chirp` uses the same serial/USB cable as the `710` scripts. 
 	
@@ -255,9 +306,9 @@ The `710.sh` script requires `710.py` to talk to the radio. It does not start th
 
 ## OPTIONAL (Linux only): Add a `udev` rule for your USB-serial cable
 
-This is optional but recommended and will ensure that your radio's cable always is identified as the same serial port name on your Pi.
+This is optional but recommended and will ensure that your radio's cable always is identified as the same serial port name on your computer.
 
-1. With your USB-serial cable for your radio __unplugged__ from the Pi, run this command in the Terminal:
+1. With your USB-serial cable for your radio __unplugged__ from the computer, run this command in the Terminal:
 
 		lsusb
 	
@@ -270,7 +321,7 @@ This is optional but recommended and will ensure that your radio's cable always 
 		Bus 001 Device 002: ID 2109:3431 VIA Labs, Inc. Hub
 		Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
 
-1. Connect your USB-serial cable to a USB port on your Pi. Your radio does not have to be powered on.
+1. Connect your USB-serial cable to a USB port on your computer. Your radio does not have to be powered on.
 
 1. Run `lsusb` again. 
 
@@ -292,7 +343,7 @@ This is optional but recommended and will ensure that your radio's cable always 
 	
 1. The rule will use the ID information to identify that particular cable. In this example, the ID is `0403:6001`. Your cable will likely have a different ID. The ID consists of 2 parts: The part before the `:` is the `idVendor` and the part after the `:` is the `idProduct`.
 
-1. The rule is defined in a file in `/etc/udev/rules.d`. To make the rule file, enter these commands in the Terminal using the ATTR values for your cable and whatever name you've decided to use (Note that after the 1st 2 commands, you'll get a `>` prompt):
+1. The rule is defined in a file in `/etc/udev/rules.d`. To make the rule file, enter these commands in the Terminal using the ATTR values for your cable and whatever name you've decided to use (Note that after the 1st two commands, you'll get a `>` prompt):
 
 		cat >99-kenwood.rules <<EOF
 		SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", SYMLINK+="kenwoodTM-V71A"
@@ -307,10 +358,10 @@ This is optional but recommended and will ensure that your radio's cable always 
 		> EOF
 		
 		pi@nexuspi4b-ag7gn:~ $ sudo mv 99-kenwood.rules /etc/udev/rules.d/
-
 		pi@nexuspi4b-ag7gn:~ $ sudo udevadm control --reload
+		pi@nexuspi4b-ag7gn:~ $ sudo udevadm trigger
 
-1. Unplug your USB-serial cable from your Pi and plug it back in.
+1. For good measure, unplug your USB-serial cable from your computer and plug it back in.
 
 1. Now you'll see your serial port in `/dev/`. Run `ls -al /dev/ken*` to see it. 
 
@@ -319,13 +370,13 @@ This is optional but recommended and will ensure that your radio's cable always 
 		pi@nexuspi4b-ag7gn:~ $ ls -al /dev/ken*
 		lrwxrwxrwx 1 root root 7 Jan 30 16:15 /dev/kenwoodTM-V71A -> ttyUSB1
 
-1. From now on, your serial port will be called `/dev/kenwoodTM-V71A` even if you disconnect/reconnect the cable or reboot the Pi.
+1. From now on, your serial port will be called `/dev/kenwoodTM-V71A` even if you disconnect/reconnect the cable or reboot the computer.
 
 ### Distinguishing between cables of the same make/model
 
-__IMPORTANT:__ If you have 2 USB-Serial cables of the same make and model attached to your Pi, they'll both have the same idVendor and idProduct value. In that case you'll need to use additional or alternate criteria to tell them apart. These devices have a lot of attribute (ATTRS) values, so you might find that one of the ATTRS is a serial number of some sort. Here's how:
+__IMPORTANT:__ If you have 2 USB-Serial cables of the same make and model attached to your computer, they'll both have the same idVendor and idProduct value. In that case you'll need to use additional or alternate criteria to tell them apart. These devices have a lot of attribute (ATTRS) values, so you might find that one of the ATTRS is a serial number of some sort. Here's how:
 
-1. Make sure your cable is plugged in to your Pi
+1. Make sure your cable is plugged in to your computer
 1. Identify the port you want to query (ex. `/dev/ttyUSB0`, `/dev/ttyUSB1`). In this example, we'll use the one we just set up: `/dev/KenwoodTM-V71A`:
 
 		pi@nexuspi4b-ag7gn:~ $ udevadm info -q property -n /dev/kenwoodTM-V71A

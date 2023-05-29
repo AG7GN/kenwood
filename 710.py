@@ -22,7 +22,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2023, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "2.2.0"
+__version__ = "2.3.0"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -143,11 +143,18 @@ if __name__ == "__main__":
                              "and associated special serial cable. Disables\n"
                              "RTS on the serial port because on the DigiRig,\n"
                              "RTS controls PTT via a separate circuit.\n\n"
-                             "'cat' will, when 'rig.set_ptt' calls are received,\n"
-                             "send the 'TX' or 'RX' CAT command to the radio\n"
-                             "to control PTT. Note that this will activate PTT\n"
+                             "'cm108[:1-8]' will activate a CM108 GPIO for PTT on\n"
+                             "CM108/CM119 sound interfaces such as the DRA\n"
+                             "series of sound cards. You can specify the CM108\n"
+                             "GPIO pin by appending ':x' to 'cm108' where x is\n"
+                             "1 through 8 inclusive. 'cm108' by itself will use\n"
+                             "GPIO 3, the most commonly used GPIO for CM108 PTT.\n"
+                             "If more than one CM108 sound card is attached,\n"
+                             "the first one found will be used.\n\n"
+                             "'cat' will send the 'TX' or 'RX' CAT command to the\n"
+                             "radio to control PTT. Note that this will transmit\n"
                              "on the side on which PTT is set and will transmit\n"
-                             "mic audio, *not* the DATA port audio!\n\n")
+                             "mic audio, *not* DATA port audio!\n\n")
     parser.add_argument("-c", "--command",
                         type=str, help="CAT command to send to radio (no GUI)")
     arg_info = parser.parse_args()

@@ -8,7 +8,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2022, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "2.0.6"
+__version__ = "2.0.7"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -101,17 +101,17 @@ class Cat(object):
             # Product IDs with known GPIO capability from the CM1xx family
             self.product_ids = (0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf,
                                 0x139, 0x12, 0x13, 0x13a, 0x13c)
-            self.product_id = None
-            for device_dict in hid.enumerate():
-                if self.vendor_id in device_dict.values():
-                    if device_dict['product_id'] in self.product_ids:
-                        self.product_id = device_dict['product_id']
-                        # print(f"{stamp()}: Found CM108 device "
-                        #       f"0x{self.vendor_id:04x}:0x{self.product_id:04x}",
-                        #       file=sys.stderr)
-                        break
-            if self.product_id is None:
-                print(f"{stamp()}: No CM108 device with GPIO found", file=sys.stderr)
+            self.path = None
+            for device_dict in hid.enumerate(vendor_id=self.vendor_id):
+                if device_dict['product_id'] in self.product_ids:
+                    self.path = device_dict['path']
+                    # There is no way to identify the cheap SYBA CM1xx
+                    # USB sound cards because there is no serial number.
+                    # So, use the first CM1xx sound card we find.
+                    break
+            if self.path is None:
+                print(f"{stamp()}: No CM1xx sound device with GPIO found",
+                      file=sys.stderr)
                 return
             else:
                 self.device = hid.device()
@@ -123,10 +123,10 @@ class Cat(object):
 
         def _open(self) -> bool:
             try:
-                self.device.open(self.vendor_id, self.product_id)
+                self.device.open_path(self.path)
             except (OSError, IOError) as e:
-                print(f"{stamp()}: Unable to open CM108 device "
-                      f"0x{self.vendor_id:04x}:0x{self.product_id:04x}: {e}",
+                print(f"{stamp()}: Unable to open CM1xx sound device "
+                      f"at path {self.path}: {e}",
                       file=sys.stderr)
                 return False
             else:
@@ -134,7 +134,8 @@ class Cat(object):
                 return True
 
         def _close(self):
-            self.device.close()
+            if self.device is not None:
+                self.device.close()
 
         def on(self):
             if self._open():

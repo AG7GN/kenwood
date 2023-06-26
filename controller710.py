@@ -36,7 +36,7 @@ class Controller(object):
         self.o_serial = o_serial
         self.serial_port = args.port
         self.baudrate = args.baudrate
-        self.ptt_pin = args.rig
+        self.ptt = args.rig
         self.xmlrpc_port = args.xmlport
         self.loc = args.location
         if args.small:
@@ -49,7 +49,7 @@ class Controller(object):
         self.xmlrpc_server = None
         self.title = None
         self.cmd_queue = Queue()
-        self.cat = Cat(self.o_serial, self.ptt_pin, job_queue=self.cmd_queue)
+        self.cat = Cat(self.o_serial, self.ptt, job_queue=self.cmd_queue)
         self.controller_thread = None
         self.controller_running = False
         self.previous_rig_dictionary = None

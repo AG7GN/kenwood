@@ -8,7 +8,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2022, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "2.0.7"
+__version__ = "2.0.8"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -62,7 +62,7 @@ class Cat(object):
         DigiRig device. This cable can be purchased from digirig.net.
         """
 
-        def __init__(self, port: object):
+        def __init__(self, port):
             self.port = port
 
         def on(self):
@@ -221,8 +221,32 @@ class Cat(object):
         if self.ptt_pin == 'none':
             # self.state['gpio'] = None
             self.ptt = None
-        elif self.ptt_pin == 'digirig':
-            self.ptt = self.DigirigPtt(self.ser)
+        elif self.ptt_pin.startswith('digirig'):
+            digirig = self.ptt_pin.split('@')
+            try:
+                digirig_device_name = digirig[1]
+            except (ValueError, IndexError):
+                # No '@<device>' so digirig uses same serial
+                # port as controller
+                self.ptt = self.DigirigPtt(self.ser)
+            else:
+                # User supplied a digirig serial port device name,
+                # and it is different from the controller port device.
+                # Set up the digirig serial port
+                import serial
+                digirig_device = serial.Serial(port=None)
+                digirig_device.rts = False
+                digirig_device.port = digirig_device_name
+                try:
+                    digirig_device.open()
+                except serial.serialutil.SerialException:
+                    # Supplied digirig device port exits, but can't open it
+                    print(f"{stamp()}: Could not open digirig device "
+                          f"{digirig_device_name}. Ignoring CAT PTT commands.",
+                          file=sys.stderr)
+                    self.ptt = None
+                else:
+                    self.ptt = self.DigirigPtt(digirig_device)
         elif self.ptt_pin == 'cat':
             self.ptt = self.CatPtt(self.job_queue)
         elif self.ptt_pin.startswith('cm108'):

@@ -22,7 +22,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2023, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "2.3.1"
+__version__ = "2.3.2"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -102,6 +102,8 @@ if __name__ == "__main__":
         ptt_list = [key for key, val in GPIO_PTT_DICT.items() if val is None]
     else:
         ptt_list = list(GPIO_PTT_DICT.keys())
+    digirig_ports = [f"digirig@{port}" for port in port_list]
+    ptt_list.extend(digirig_ports)
 
     parser = argparse.ArgumentParser(prog=__title__,
                                      description=f"CAT control for Kenwood TM-D710G/TM-V71A",
@@ -128,7 +130,7 @@ if __name__ == "__main__":
                         help="TCP port on which to listen for XML-RPC\n"
                              "rig control calls from clients such as\n"
                              "Fldigi or Hamlib rigctl[d].")
-    parser.add_argument("-r", "--rig", type=str.lower,
+    parser.add_argument("-r", "--rig", type=str,
                         choices=ptt_list,
                         default='none',
                         help="PTT device to use if you want to control \n"
@@ -139,17 +141,28 @@ if __name__ == "__main__":
                              "pin 12 for the left radio and pin 23 for the right.\n\n"
                              "'none' means that 'rig.set_ptt' calls will be ignored\n"
                              "(meaning you'll control PTT by some other means).\n\n"
-                             "'digirig' is for use with the DigiRig interface\n"
-                             "and associated special serial cable. Disables\n"
+                             "'digirig[@digirig-serial-port]':\n"
+                             "'digirig' is for use with the DigiRig sound card\n"
+                             "and associated special serial cable between the\n"
+                             "radio and the DigiRig serial port. Disables\n"
                              "RTS on the serial port because on the DigiRig,\n"
-                             "RTS controls PTT via a separate circuit.\n\n"
-                             "'cm108[:1-8]' will activate a CM108 GPIO for PTT on\n"
-                             "CM108/CM119 sound interfaces such as the DRA\n"
-                             "series of sound cards. You can specify the CM108\n"
-                             "GPIO pin by appending ':x' to 'cm108' where x is\n"
-                             "1 through 8 inclusive. 'cm108' by itself will use\n"
-                             "GPIO 3, the most commonly used GPIO for CM108 PTT.\n"
-                             "If more than one CM108 sound card is attached,\n"
+                             "RTS controls PTT via a separate circuit.\n"
+                             "'digirig@<digirig-serial-port>' is for use when the\n"
+                             "controller uses a different serial port than the\n"
+                             "DigiRig sound card. In other words, there's no\n"
+                             "connection from the DigiRig serial port to the radio.\n"
+                             "In that case when an XML-RPC 'rig.set_ptt' call is\n"
+                             "received, the controller activates RTS on\n"
+                             "<digirig-serial-port>, which triggers PTT through the\n"
+                             "6-pin minDIN connector.\n\n"
+                             "'cm108[:1-8]' will activate a GPIO on CM108/CM119\n"
+                             "sound interfaces for PTT. Masters Communications\n"
+                             "DRA series of sound cards use this chip and PTT.\n"
+                             "You can specify the GPIO pin by appending ':x'\n"
+                             "to 'cm108' where x is 1 through 8 inclusive.\n"
+                             "'cm108' by itself will use GPIO 3, the most\n"
+                             "commonly used GPIO for CM108/CM119 PTT.\n"
+                             "If more than one CM108/CM119 sound card is attached,\n"
                              "the first one found will be used.\n\n"
                              "'cat' will send the 'TX' or 'RX' CAT command to the\n"
                              "radio to control PTT. Note that this will transmit\n"
@@ -172,8 +185,28 @@ if __name__ == "__main__":
     ser = serial.Serial(port=None, baudrate=arg_info.baudrate,
                         timeout=0.1,
                         writeTimeout=0.1)
-    if arg_info.rig == 'digirig':
-        ser.rts = False
+
+    if arg_info.rig.startswith('digirig'):
+        digirig = arg_info.rig.split('@')
+        try:
+            digirig_port_name = digirig[1]
+        except (ValueError, IndexError):
+            # digirig uses same serial port as controller
+            ser.rts = False
+        else:
+            # User supplied a digirig serial port device name
+            if digirig_port_name == arg_info.port:
+                # Supplied device name is the same as the
+                # controller port device
+                ser.rts = False
+                arg_info.rig = 'digirig'
+            else:
+                if digirig_port_name not in port_list:
+                    print(f"{stamp()}: Could not find {digirig_port_name}. "
+                          f"Ignoring CAT PTT commands.",
+                          file=sys.stderr)
+                    arg_info.rig = 'none'
+
     ser.port = arg_info.port
     try:
         ser.open()

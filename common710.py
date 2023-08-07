@@ -290,3 +290,9 @@ MENU_DICT = {'beep': {'index': 1, 'values': STATE_DICT['inv']},
              'data': {'index': 38, 'values': DATA_BAND_DICT['inv']},
              'speed': {'index': 39, 'values': DATA_SPEED_DICT['inv']},
              }
+
+# C-Media CM1xx sound card Vendor ID
+VENDOR_ID = 0x0d8c
+# C-Media CM1xx product IDs with known GPIO capability
+PRODUCT_IDS = (0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf,
+               0x139, 0x12, 0x13, 0x13a, 0x13c)

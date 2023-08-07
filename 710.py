@@ -7,6 +7,7 @@ import os
 import re
 import sys
 import signal
+
 from common710 import stamp
 from common710 import XMLRPC_PORT
 from common710 import GPIO_PTT_DICT
@@ -22,7 +23,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2023, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "2.3.2"
+__version__ = "2.3.3"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -121,6 +122,8 @@ if __name__ == "__main__":
                         help="Serial port speed (must match radio!)")
     parser.add_argument("-s", "--small", action='store_true',
                         help="Smaller GUI window")
+    # parser.add_argument("--cm108_devices", action="store_true",
+    #                     help="List attached C-Media CM1xx devices.")
     parser.add_argument("-l", "--location", type=str, metavar="x:y",
                         help="x:y: Initial x and y position (in pixels)\n"
                              "of upper left corner of GUI.")
@@ -206,6 +209,30 @@ if __name__ == "__main__":
                           f"Ignoring CAT PTT commands.",
                           file=sys.stderr)
                     arg_info.rig = 'none'
+
+    # # Check if a list of C-Media devices was requested
+    # if arg_info.cm108_devices:
+    #     try:
+    #         import hid
+    #     except ModuleNotFoundError:
+    #         print(f"{stamp()}: Python3 hidapi module not found.", file=sys.stderr)
+    #         sys.exit(1)
+    #     product_id = None
+    #     cm108_devices = {}
+    #     device_dict = {}
+    #     index = 0
+    #     for device_dict in hid.enumerate(common710.VENDOR_ID):
+    #         if device_dict['product_id'] in common710.PRODUCT_IDS:
+    #             index += 1
+    #             cm108_devices.update({index: device_dict['path']})
+    #     if index > 0:
+    #         print(f"{'Index': ^5} C-Media CM1xx Device Path")
+    #         print(f"{'-----': ^5} -------------------------")
+    #         for key, value in cm108_devices.items():
+    #             print(f"{key: ^5} {value.decode()}")
+    #     else:
+    #         print("No C-Media CM1xx sound cards with GPIO found.")
+    #     sys.exit(0)
 
     ser.port = arg_info.port
     try:

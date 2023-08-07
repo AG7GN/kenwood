@@ -12,7 +12,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2023, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "1.0.7"
+__version__ = "1.0.8"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -36,7 +36,7 @@ class RigXMLRPC(object):
     """
     class RequestHandler(SimpleXMLRPCRequestHandler):
         # Restrict to a particular path.
-        rpc_paths = ('/RPC2',)
+        rpc_paths = ('/', '/RPC2')
         # Specify HTTP/1.1, so we can use a single HTTP session
         protocol_version = 'HTTP/1.1'
 

@@ -1,6 +1,8 @@
 import io
 import re
 import sys
+
+import common710
 from common710 import *
 from queue import Queue
 
@@ -97,15 +99,14 @@ class Cat(object):
             self.PTT_off = bytearray([0, 0, mask, 0, 0])
             self.CM108_ready = False
             # CM1xx sound card Vendor ID
-            self.vendor_id = 0x0d8c
+            # self.vendor_id = common710.VENDOR_ID
             # Product IDs with known GPIO capability from the CM1xx family
-            self.product_ids = (0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf,
-                                0x139, 0x12, 0x13, 0x13a, 0x13c)
+            # self.product_ids = common710.PRODUCT_IDS
             self.path = None
-            for device_dict in hid.enumerate(vendor_id=self.vendor_id):
-                if device_dict['product_id'] in self.product_ids:
+            for device_dict in hid.enumerate(vendor_id=common710.VENDOR_ID):
+                if device_dict['product_id'] in common710.PRODUCT_IDS:
                     self.path = device_dict['path']
-                    # There is no way to identify the cheap SYBA CM1xx
+                    # There is no way to identify individual CM1xx
                     # USB sound cards because there is no serial number.
                     # So, use the first CM1xx sound card we find.
                     break

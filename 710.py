@@ -8,9 +8,10 @@ import re
 import sys
 import signal
 
+import common710
 from common710 import stamp
 from common710 import XMLRPC_PORT
-from common710 import GPIO_PTT_DICT
+from common710 import VENDOR_ID, PRODUCT_IDS
 try:
     import argparse
 except ModuleNotFoundError:
@@ -23,7 +24,7 @@ __author__ = "Steve Magnuson AG7GN"
 __copyright__ = "Copyright 2023, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "2.3.3"
+__version__ = "2.3.4"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -48,7 +49,7 @@ def cleanup():
         controller.stop()
 
 
-def get_ports():
+def get_ports() -> list:
     """
     Windows: Looks for COM ports
     Mac/Linux: Walks /dev searching for paths with filenames or
@@ -91,20 +92,50 @@ def get_ports():
     return ports
 
 
+def get_cm1xx_devices() -> dict:
+    found_devices = {}
+    try:
+        import hid
+    except ModuleNotFoundError:
+        print(f"{stamp()}: Python3 hidapi module not found.", file=sys.stderr)
+    else:
+        index = 0
+        for device_dict in hid.enumerate(VENDOR_ID):
+            if device_dict['product_id'] in PRODUCT_IDS:
+                index += 1
+                found_devices.update({index: device_dict['path']})
+    return found_devices
+
+
+def rig_choices() -> list:
+    rig_list = ['none']
+    if not sys.platform.startswith('win'):
+        rig_list.extend(common710.GPIO_PTT)
+        rig_list.extend(common710.NEXUS_PTT_GPIO_DICT.keys())
+    rig_list.append('digirig')
+    if len(port_list) > 1:
+        digirig_ports = [f"digirig@{port}" for port in port_list]
+        rig_list.extend(digirig_ports)
+    if cmedia_devices:
+        rig_list.append('cm108')
+        for i in range(1, 9):
+            rig_list.append(f'cm108:{i}')
+        if len(cmedia_devices) > 1:
+            for i in range(1, len(cmedia_devices)+1):
+                rig_list.append(f'cm108@{i}')
+                for j in range(1, 9):
+                    rig_list.append(f'cm108@{i}:{j}')
+    return rig_list
+
+
 if __name__ == "__main__":
+    signal.signal(signal.SIGINT, sigint_handler)
     port_list = get_ports()
     if not port_list:
-        default_port = ''
-    else:
-        default_port = port_list[0]
-    signal.signal(signal.SIGINT, sigint_handler)
-    if sys.platform.startswith('win'):
-        # Omit GPIO pin options if OS is Windows
-        ptt_list = [key for key, val in GPIO_PTT_DICT.items() if val is None]
-    else:
-        ptt_list = list(GPIO_PTT_DICT.keys())
-    digirig_ports = [f"digirig@{port}" for port in port_list]
-    ptt_list.extend(digirig_ports)
+        print(f"{stamp()}: No serial ports found.", file=sys.stderr)
+        sys.exit(1)
+    default_port = port_list[0]
+    cmedia_devices = get_cm1xx_devices()
 
     parser = argparse.ArgumentParser(prog=__title__,
                                      description=f"CAT control for Kenwood TM-D710G/TM-V71A",
@@ -115,6 +146,9 @@ if __name__ == "__main__":
                         choices=port_list,
                         type=str, default=default_port,
                         help="Serial port connected to radio")
+    parser.add_argument("--norts", action="store_true",
+                        help="Disable RTS on serial port. Required when\n"
+                             "DigiRig serial port is connected to radio.")
     parser.add_argument("-b", "--baudrate",
                         choices=[300, 1200, 2400, 4800, 9600, 19200,
                                  38400, 57600],
@@ -122,8 +156,8 @@ if __name__ == "__main__":
                         help="Serial port speed (must match radio!)")
     parser.add_argument("-s", "--small", action='store_true',
                         help="Smaller GUI window")
-    # parser.add_argument("--cm108_devices", action="store_true",
-    #                     help="List attached C-Media CM1xx devices.")
+    parser.add_argument("--cm108_devices", action="store_true",
+                        help="List attached C-Media CM1xx devices.")
     parser.add_argument("-l", "--location", type=str, metavar="x:y",
                         help="x:y: Initial x and y position (in pixels)\n"
                              "of upper left corner of GUI.")
@@ -133,43 +167,42 @@ if __name__ == "__main__":
                         help="TCP port on which to listen for XML-RPC\n"
                              "rig control calls from clients such as\n"
                              "Fldigi or Hamlib rigctl[d].")
-    parser.add_argument("-r", "--rig", type=str,
-                        choices=ptt_list,
+    parser.add_argument("-r", "--ptt", type=str,
+                        choices=rig_choices(),
                         default='none',
-                        help="PTT device to use if you want to control \n"
-                             "PTT via an XML-RPC 'rig.set_ptt' call.\n"
-                             "Pi users can specify the BCM GPIO pin number\n"
-                             "driving your PTT circuit. Nexus DR-X Pi users:\n"
+                        help="How to handle XML-RPC 'rig.set_ptt' calls.\n\n"
+                             "Raspberry Pi users can specify the BCM GPIO pin\n"
+                             "number driving your PTT circuit. Nexus DR-X Pi users:\n"
                              "Use 'left' or 'right'. This will map to GPIO\n"
                              "pin 12 for the left radio and pin 23 for the right.\n\n"
-                             "'none' means that 'rig.set_ptt' calls will be ignored\n"
-                             "(meaning you'll control PTT by some other means).\n\n"
+                             "'none' (the default) means that 'rig.set_ptt' calls\n"
+                             "will be ignored (meaning you'll control PTT by\n"
+                             "some other means).\n\n"
                              "'digirig[@digirig-serial-port]':\n"
                              "'digirig' is for use with the DigiRig sound card\n"
-                             "and associated special serial cable between the\n"
-                             "radio and the DigiRig serial port. Disables\n"
-                             "RTS on the serial port because on the DigiRig,\n"
-                             "RTS controls PTT via a separate circuit.\n"
+                             "and (optionally) the associated special serial cable\n"
+                             "between the radio and the DigiRig serial port.\n"
                              "'digirig@<digirig-serial-port>' is for use when the\n"
-                             "controller uses a different serial port than the\n"
-                             "DigiRig sound card. In other words, there's no\n"
-                             "connection from the DigiRig serial port to the radio.\n"
-                             "In that case when an XML-RPC 'rig.set_ptt' call is\n"
-                             "received, the controller activates RTS on\n"
-                             "<digirig-serial-port>, which triggers PTT through the\n"
-                             "6-pin minDIN connector.\n\n"
-                             "'cm108[:1-8]' will activate a GPIO on CM108/CM119\n"
-                             "sound interfaces for PTT. Masters Communications\n"
-                             "DRA series of sound cards use this chip and PTT.\n"
-                             "You can specify the GPIO pin by appending ':x'\n"
-                             "to 'cm108' where x is 1 through 8 inclusive.\n"
-                             "'cm108' by itself will use GPIO 3, the most\n"
-                             "commonly used GPIO for CM108/CM119 PTT.\n"
+                             "controller is connected via a different serial port\n"
+                             "than the DigiRig. In that case when an XML-RPC\n"
+                             "'rig.set_ptt' call is received, the controller\n"
+                             "activates RTS on <digirig-serial-port>, which\n"
+                             "triggers PTT through the 6-pin minDIN connector.\n\n"
+                             "'cm108[@index][:1-8]' will activate a GPIO pin on\n"
+                             "CM108/CM119 sound interfaces for PTT. Masters\n"
+                             "Communications DRA series of sound cards use this\n"
+                             "chip and PTT mechanism.\n\n"
                              "If more than one CM108/CM119 sound card is attached,\n"
-                             "the first one found will be used.\n\n"
+                             "the last one found will be used unless you specify\n"
+                             "'@index'. You can determine the index by running this\n"
+                             "program one time with only the '--cm108_devices' argument\n"
+                             "to see a list of attached and compatible cm1xx devices.\n\n"
+                             "You can specify the CM108 GPIO pin by appending ':x'\n"
+                             "where x is 1 through 8 inclusive. 'cm108' by itself\n"
+                             "will use GPIO 3, the most commonly used CM1xx GPIO pin.\n\n"
                              "'cat' will send the 'TX' or 'RX' CAT command to the\n"
                              "radio to control PTT. Note that this will transmit\n"
-                             "on the side on which PTT is set and will transmit\n"
+                             "on the side on which 'PTT' is set and will transmit\n"
                              "mic audio, *not* DATA port audio!\n\n")
     parser.add_argument("-c", "--command",
                         type=str, help="CAT command to send to radio (no GUI)")
@@ -188,51 +221,9 @@ if __name__ == "__main__":
     ser = serial.Serial(port=None, baudrate=arg_info.baudrate,
                         timeout=0.1,
                         writeTimeout=0.1)
-
-    if arg_info.rig.startswith('digirig'):
-        digirig = arg_info.rig.split('@')
-        try:
-            digirig_port_name = digirig[1]
-        except (ValueError, IndexError):
-            # digirig uses same serial port as controller
-            ser.rts = False
-        else:
-            # User supplied a digirig serial port device name
-            if digirig_port_name == arg_info.port:
-                # Supplied device name is the same as the
-                # controller port device
-                ser.rts = False
-                arg_info.rig = 'digirig'
-            else:
-                if digirig_port_name not in port_list:
-                    print(f"{stamp()}: Could not find {digirig_port_name}. "
-                          f"Ignoring CAT PTT commands.",
-                          file=sys.stderr)
-                    arg_info.rig = 'none'
-
-    # # Check if a list of C-Media devices was requested
-    # if arg_info.cm108_devices:
-    #     try:
-    #         import hid
-    #     except ModuleNotFoundError:
-    #         print(f"{stamp()}: Python3 hidapi module not found.", file=sys.stderr)
-    #         sys.exit(1)
-    #     product_id = None
-    #     cm108_devices = {}
-    #     device_dict = {}
-    #     index = 0
-    #     for device_dict in hid.enumerate(common710.VENDOR_ID):
-    #         if device_dict['product_id'] in common710.PRODUCT_IDS:
-    #             index += 1
-    #             cm108_devices.update({index: device_dict['path']})
-    #     if index > 0:
-    #         print(f"{'Index': ^5} C-Media CM1xx Device Path")
-    #         print(f"{'-----': ^5} -------------------------")
-    #         for key, value in cm108_devices.items():
-    #             print(f"{key: ^5} {value.decode()}")
-    #     else:
-    #         print("No C-Media CM1xx sound cards with GPIO found.")
-    #     sys.exit(0)
+    if arg_info.norts:
+        # Needed when DigiRig serial port is used to connect to rig
+        ser.rts = False
 
     ser.port = arg_info.port
     try:
@@ -240,6 +231,18 @@ if __name__ == "__main__":
     except serial.serialutil.SerialException:
         print(f"{stamp()}: Could not open {arg_info.port}", file=sys.stderr)
         sys.exit(1)
+
+    # Print list of C-Media devices,if requested, then exit
+    if arg_info.cm108_devices:
+        if cmedia_devices:
+            print(f"{'Index': ^5} C-Media CM1xx Device Path")
+            print(f"{'-----': ^5} -------------------------")
+            for key, value in cmedia_devices.items():
+                print(f"{key: ^5} {value.decode()}")
+        else:
+            print("No C-Media CM1xx sound cards with GPIO found.")
+        sys.exit(0)
+
     from controller710 import Controller
     controller = Controller(ser, arg_info, version=__version__)
 
@@ -256,8 +259,8 @@ if __name__ == "__main__":
 
     if not sys.platform.startswith('win'):
         if os.environ.get('DISPLAY', '') == '' and sys.platform != 'darwin':
-            print(f"No $DISPLAY environment. "
-                  f"Only '-c' option works without X", file=sys.stderr)
+            print(f"No $DISPLAY environment. Only '-c' or '--cm108_devices'"
+                  "options work without X", file=sys.stderr)
             sys.exit(1)
             # os.environ.__setitem__('DISPLAY', ':0.0')
 

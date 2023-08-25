@@ -4,6 +4,7 @@ import argparse
 from time import time
 from queue import Queue
 from threading import Thread
+from ptt710 import Ptt
 from cat710 import Cat
 from common710 import stamp
 from common710 import UpdateDisplayException
@@ -21,6 +22,7 @@ __status__ = "Production"
 
 
 class Controller(object):
+
     """
     Object Manager object for the Kenwood TM-D710G and TM-V71A controller
     """
@@ -36,7 +38,8 @@ class Controller(object):
         self.o_serial = o_serial
         self.serial_port = args.port
         self.baudrate = args.baudrate
-        self.ptt = args.rig
+        self.ptt_method = args.ptt
+        self.ptt = None
         self.xmlrpc_port = args.xmlport
         self.loc = args.location
         if args.small:
@@ -49,22 +52,12 @@ class Controller(object):
         self.xmlrpc_server = None
         self.title = None
         self.cmd_queue = Queue()
-        self.cat = Cat(self.o_serial, self.ptt, job_queue=self.cmd_queue)
+        self.cat = Cat(self.o_serial, job_queue=self.cmd_queue)
         self.controller_thread = None
         self.controller_running = False
         self.previous_rig_dictionary = None
-        try:
-            self.xmlrpc_server = RigXMLRPC(self.xmlrpc_port, self.cat,
-                                           self.cmd_queue)
-        except OSError as _:
-            self.print_error(f"XML-RPC port {self.xmlrpc_port} is already in use.\n\n"
-                             f"Is this program or Flrig already running?\n"
-                             f"Close it before running this program.")
-            self.stop()
-        else:
-            self.xmlrpc_thread = Thread(target=self.xmlrpc_server.start)
-            # Kill this thread when the main app terminates
-            self.xmlrpc_thread.daemon = True
+        self.xmlrpc_thread = None
+        self.ptt_handler = None
 
     def _start_xmlrpc_server(self):
         time_current = time()
@@ -127,6 +120,21 @@ class Controller(object):
         print(f"{stamp()}: Starting controller...", file=sys.stderr)
         self.controller_thread.start()
         print(f"{stamp()}: Controller running.", file=sys.stderr)
+        self.ptt_handler = Ptt(self.ptt_method, default_port=self.o_serial,
+                               msg_queue=self.msg_queue)
+        try:
+            self.xmlrpc_server = RigXMLRPC(self.xmlrpc_port, self.cat,
+                                           self.cmd_queue,
+                                           ptt_handler=self.ptt_handler)
+        except OSError as _:
+            self.print_error(f"XML-RPC port {self.xmlrpc_port} is already in use.\n\n"
+                             f"Is this program or Flrig already running?\n"
+                             f"Close it before running this program.")
+            self.stop()
+        else:
+            self.xmlrpc_thread = Thread(target=self.xmlrpc_server.start)
+            # Kill this thread when the main app terminates
+            self.xmlrpc_thread.daemon = True
         self._start_xmlrpc_server()
         self.msg_queue.put(['INFO', f"{stamp()}: XML-RPC server "
                                     f"listening on port {self.xmlrpc_port}"])

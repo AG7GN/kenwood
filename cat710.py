@@ -1,16 +1,14 @@
 import io
 import re
 import sys
-
-import common710
 from common710 import *
 from queue import Queue
 
 __author__ = "Steve Magnuson AG7GN"
-__copyright__ = "Copyright 2022, Steve Magnuson"
+__copyright__ = "Copyright 2023, Steve Magnuson"
 __credits__ = ["Steve Magnuson"]
 __license__ = "GPL v3.0"
-__version__ = "2.0.8"
+__version__ = "2.0.10"
 __maintainer__ = "Steve Magnuson"
 __email__ = "ag7gn@arrl.net"
 __status__ = "Production"
@@ -25,154 +23,7 @@ class Cat(object):
     control the radio via a serial interface. The Kenwood CAT commands
     are documented at https://github.com/LA3QMA/TM-V71_TM-D710-Kenwood
     """
-
-    class CatPtt(object):
-        """
-        Implements PTT via CAT command to serial port. Note that sending
-        the CAT command 'TX' will cause the mic audio to be transmitted,
-        not audio received on the DATA port
-        """
-
-        def __init__(self, job_queue: Queue):
-            self.job_queue = job_queue
-            self.ptt_active = 0
-
-        def on(self):
-            if self.job_queue is not None:
-                self.job_queue.put(['cat_ptt', 'TX'])
-                self.ptt_active = 1
-
-        def off(self):
-            if self.job_queue is not None:
-                self.job_queue.put(['cat_ptt', 'RX'])
-                self.ptt_active = 0
-
-        @property
-        def value(self):
-            # There is no way to query the radio for PTT state,
-            # so use the self.ptt_active variable set in the 'on' and
-            # 'off' functions above for status.
-            return self.ptt_active
-
-    class DigirigPtt(object):
-        """
-        Implements PTT via assertion of RTS in CAT serial port. DigiRig
-        devices use the RTS signal on the serial port to drive a circuit
-        that controls PTT in the Mini-DIN6 connector. For CAT to work,
-        a special serial cable that loops the RTS pin back to the CTS
-        pin on the radio side must be used between the radio and the
-        DigiRig device. This cable can be purchased from digirig.net.
-        """
-
-        def __init__(self, port):
-            self.port = port
-
-        def on(self):
-            self.port.rts = True
-
-        def off(self):
-            self.port.rts = False
-
-        @property
-        def value(self):
-            return int(self.port.rts)
-
-    class CM108Ptt(object):
-        """
-        Implements PTT via GPIO on CM108/CM119 sound interfaces such as
-        the DRA series. The most common GPIO pin for PTT on these
-        devices is 3, but the user can specify any GPIO pin between 1
-        and 8. 3 is the default
-        """
-        def __init__(self, pin: int):
-            try:
-                import hid
-            except ModuleNotFoundError:
-                print(f"{stamp()}: Python3 hidapi module not found.", file=sys.stderr)
-                return
-            self.pin = pin
-            self.device = None
-            self.ptt_active = 0
-            # CM108 info: https://github.com/nwdigitalradio/direwolf/blob/master/cm108.c)
-            mask = 1 << (self.pin - 1)
-            self.PTT_on = bytearray([0, 0, mask, mask, 0])
-            self.PTT_off = bytearray([0, 0, mask, 0, 0])
-            self.CM108_ready = False
-            # CM1xx sound card Vendor ID
-            # self.vendor_id = common710.VENDOR_ID
-            # Product IDs with known GPIO capability from the CM1xx family
-            # self.product_ids = common710.PRODUCT_IDS
-            self.path = None
-            for device_dict in hid.enumerate(vendor_id=common710.VENDOR_ID):
-                if device_dict['product_id'] in common710.PRODUCT_IDS:
-                    self.path = device_dict['path']
-                    # There is no way to identify individual CM1xx
-                    # USB sound cards because there is no serial number.
-                    # So, use the first CM1xx sound card we find.
-                    break
-            if self.path is None:
-                print(f"{stamp()}: No CM1xx sound device with GPIO found",
-                      file=sys.stderr)
-                return
-            else:
-                self.device = hid.device()
-                # Verify that we can open the HID device before
-                # claiming victory
-                if self._open():
-                    self._close()
-                    self.CM108_ready = True
-
-        def _open(self) -> bool:
-            try:
-                self.device.open_path(self.path)
-            except (OSError, IOError) as e:
-                print(f"{stamp()}: Unable to open CM1xx sound device "
-                      f"at path {self.path}: {e}",
-                      file=sys.stderr)
-                return False
-            else:
-                self.device.set_nonblocking(1)
-                return True
-
-        def _close(self):
-            if self.device is not None:
-                self.device.close()
-
-        def on(self):
-            if self._open():
-                wrote = self.device.write(self.PTT_on)
-                if wrote == len(self.PTT_on):
-                    self.ptt_active = 1
-                else:
-                    self.ptt_active = 0
-                    print(f"{stamp()}: Unable to write to CM108 GPIO {self.pin}",
-                          file=sys.stderr)
-                self._close()
-
-        def off(self):
-            if self._open():
-                previous_ptt_state = self.ptt_active
-                wrote = self.device.write(self.PTT_off)
-                if wrote == len(self.PTT_off):
-                    self.ptt_active = 0
-                else:
-                    print(f"{stamp()}: Unable to write to CM108 GPIO {self.pin}",
-                          file=sys.stderr)
-                    if previous_ptt_state == 0:
-                        self.ptt_active = 0
-                    else:
-                        self.ptt_active = 1
-                self._close()
-
-        @property
-        def value(self) -> int:
-            return self.ptt_active
-
-        @property
-        def ready(self) -> bool:
-            return self.CM108_ready
-
-    def __init__(self, serial_port: object, ptt_pin: str, **kwargs):
+    def __init__(self, serial_port: object, **kwargs):
         """
         Initializes a BufferedRWPair object that wraps a serial object.
         Wrapping the serial port object allows customization of the
@@ -211,84 +62,12 @@ class Cat(object):
                       'lock': None,
                       'speed': None,
                       'data_side': None,
-                      'gpio': None,
                       'id': '',
                       'info': {'model': '',
                                'firmware': {'main': '', 'panel': ''},
                                'serial': ''
                                }
                       }
-        self.ptt_pin = ptt_pin
-        if self.ptt_pin == 'none':
-            # self.state['gpio'] = None
-            self.ptt = None
-        elif self.ptt_pin.startswith('digirig'):
-            digirig = self.ptt_pin.split('@')
-            try:
-                digirig_device_name = digirig[1]
-            except (ValueError, IndexError):
-                # No '@<device>' so digirig uses same serial
-                # port as controller
-                self.ptt = self.DigirigPtt(self.ser)
-            else:
-                # User supplied a digirig serial port device name,
-                # and it is different from the controller port device.
-                # Set up the digirig serial port
-                import serial
-                digirig_device = serial.Serial(port=None)
-                digirig_device.rts = False
-                digirig_device.port = digirig_device_name
-                try:
-                    digirig_device.open()
-                except serial.serialutil.SerialException:
-                    # Supplied digirig device port exits, but can't open it
-                    print(f"{stamp()}: Could not open digirig device "
-                          f"{digirig_device_name}. Ignoring CAT PTT commands.",
-                          file=sys.stderr)
-                    self.ptt = None
-                else:
-                    self.ptt = self.DigirigPtt(digirig_device)
-        elif self.ptt_pin == 'cat':
-            self.ptt = self.CatPtt(self.job_queue)
-        elif self.ptt_pin.startswith('cm108'):
-            cm108 = self.ptt_pin.split(':')
-            try:
-                cm108_gpio = int(cm108[1])
-            except (ValueError, IndexError):
-                # No GPIO pin specified. Use 3, the most common
-                # for PTT on CM1xx
-                cm108_gpio = 3
-            self.ptt = self.CM108Ptt(cm108_gpio)
-            if not self.ptt.ready:
-                print(f"{stamp()}: Unable to locate or init CM108. "
-                      f"Ignoring CM108 PTT settings.",
-                      file=sys.stderr)
-                self.ptt = None
-        else:
-            try:
-                from gpiozero import OutputDevice
-            except (ModuleNotFoundError, Exception):
-                print(f"{stamp()}: Python3 gpiozero module not found. "
-                      f"Ignoring GPIO PTT settings",
-                      file=sys.stderr)
-                self.ptt_pin = None
-                self.state['gpio'] = None
-                self.ptt = None
-            else:
-                from gpiozero import BadPinFactory
-                self.state['gpio'] = GPIO_PTT_DICT[self.ptt_pin]
-                try:
-                    self.ptt = OutputDevice(self.state['gpio'],
-                                            active_high=True,
-                                            initial_value=False)
-                except BadPinFactory:
-                    print(f"{stamp()}: No GPIO pins found. "
-                          f"Ignoring PTT GPIO settings",
-                          file=sys.stderr)
-                    self.ptt_pin = None
-                    self.state['gpio'] = None
-                    self.ptt = None
-
         self.reply_queue = Queue()
 
     @property
@@ -302,27 +81,6 @@ class Cat(object):
     @gui_root.setter
     def gui_root(self, root: object):
         self.gui = root
-
-    def set_ptt(self, turn_on: bool):
-        """
-        Control the state of PTT
-        :param turn_on: Desired state of PTT
-        """
-        if self.ptt is not None:
-            if turn_on:
-                self.ptt.on()
-            else:
-                self.ptt.off()
-
-    def get_ptt(self):
-        """
-        Returns state of PTT.
-        :return: 1 if PTT is active, 0 if not active or if self.ptt is None
-        """
-        if self.ptt is None:
-            return 0
-        else:
-            return self.ptt.value
 
     def query(self, request: str) -> tuple:
         """

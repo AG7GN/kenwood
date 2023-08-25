@@ -52,9 +52,10 @@ class RigXMLRPC(object):
             data = re.sub(b'<\?clientid=.*\?>', b'', data)
             return data
 
-    def __init__(self, port: int, rig, cmd_queue):
+    def __init__(self, port: int, rig, cmd_queue, **kwargs):
         self.port = port
         self.rig = rig
+        self.ptt = kwargs['ptt_handler']
         self.cmd_queue = cmd_queue
         self.rpc_server = \
             SimpleThreadedXMLRPCServer(('0.0.0.0', self.port),
@@ -114,11 +115,11 @@ class RigXMLRPC(object):
         self.rpc_server.register_function(get_bwa, 'rig.get_bwA')
 
         def get_ptt():
-            return self.rig.get_ptt()
+            return self.ptt.state
         self.rpc_server.register_function(get_ptt, 'rig.get_ptt')
 
         def set_ptt(ptt: int):
-            self.rig.set_ptt(ptt)
+            self.ptt.state = ptt
             return ''
         self.rpc_server.register_function(set_ptt, 'rig.set_ptt')
 

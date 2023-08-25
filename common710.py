@@ -30,7 +30,6 @@ __all__ = [
     'PTT_DICT',
     'CTRL_DICT',
     'MENU_DICT',
-    'GPIO_PTT_DICT',
     'DEFAULT_STEP_VHF',
     'DEFAULT_STEP_UHF',
     'stamp',
@@ -38,7 +37,10 @@ __all__ = [
     'same_frequency_band',
     'QueryException',
     'UpdateDisplayException',
-    'frequency_shifts'
+    'frequency_shifts',
+    'VENDOR_ID',
+    'PRODUCT_IDS',
+    'NEXUS_PTT_GPIO_DICT'
 ]
 
 XMLRPC_PORT = 12345
@@ -124,15 +126,19 @@ def frequency_shifts(frequency: int) -> tuple:
         return '0', '00000000'
 
 
-GPIO_PTT_DICT = {'none': None, 'cat': None, 'cm108': None, 'cm108:1': None,
-                 'cm108:2': None, 'cm108:3': None, 'cm108:4': None,
-                 'cm108:5': None, 'cm108:6': None, 'cm108:7': None,
-                 'cm108:8': None, 'digirig': None, 'left': 12,
-                 'right': 23, '4': 4, '5': 5, '6': 6, '12': 12,
-                 '13': 13, '16': 16, '17': 17, '18': 18, '19': 19,
-                 '20': 20, '21': 21, '22': 22, '23': 23, '24': 24,
-                 '25': 25, '26': 26, '27': 27
-                 }
+NEXUS_PTT_GPIO_DICT = {'left': '12', 'right': '23'}
+GPIO_PTT = ['4', '5', '6', '12', '13', '16', '17', '18', '19', '20',
+            '21', '22', '23', '24', '25', '26', '27']
+OTHER_PTT = ['digirig', 'cm108']
+# GPIO_PTT_DICT = {'none': None, 'cat': None, 'cm108[@index][:1-8]': None, 'cm108:1': None,
+#                  'cm108:2': None, 'cm108:3': None, 'cm108:4': None,
+#                  'cm108:5': None, 'cm108:6': None, 'cm108:7': None,
+#                  'cm108:8': None, 'digirig': None, 'left': 12,
+#                  'right': 23, '4': 4, '5': 5, '6': 6, '12': 12,
+#                  '13': 13, '16': 16, '17': 17, '18': 18, '19': 19,
+#                  '20': 20, '21': 21, '22': 22, '23': 23, '24': 24,
+#                  '25': 25, '26': 26, '27': 27
+#                  }
 FREQUENCY_LIMITS = {'A': {'min': 118.0, 'max': 524.0},
                     'B': {'min': 136.0, 'max': 1300.0}}
 MEMORY_LIMITS = {'min': 0, 'max': 999}

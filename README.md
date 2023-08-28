@@ -1,5 +1,5 @@
 # Kenwood CAT control for TM-D710G and TM-V71A
-VERSION 20230529
+VERSION 20230827
 
 This script allows the user to control various parameters on the Kenwood TM-V71A and TM-D710G radios via the **PC** serial port on the back of the radio main unit (not the control panel). Kenwood does not officially support CAT on these radios, but the commands have been [extensively documented by LA3QMA](https://github.com/LA3QMA/TM-V71_TM-D710-Kenwood). 
 
@@ -7,11 +7,11 @@ Among the CAT commands available are **TX** and **RX**, which activate and deact
 
 This application implements an XML-RPC server, making the application appear as if  [Flrig](http://w1hkj.com/flrig-help/) is running to clients such as [Fldigi](http://w1hkj.com/FldigiHelp/index.html) or [Hamlib's](https://hamlib.github.io) **rigctld** (using the Hamlib **"flrig"** rig ). Keeping the above PTT behaviors in mind, this application is specifically designed for use in conjunction with the DATA port in certain scenarios by offering the ability to simultaneously use the DATA port for PTT and use the PC port for CAT control of other radio functions. 
 
-When an XML-RPC client sends the RPC command to activate PTT, the script can optionally (using the `--rig <GPIO-pin>` argument) control a GPIO pin on a Pi to activate, via a circuit driven by that GPIO pin, PTT in the radio's 6-pin MiniDIN DATA connector. 
+When an XML-RPC client sends the RPC command to activate PTT, the script can optionally (using the `--ptt <GPIO-pin>` argument) control a GPIO pin on a Pi to activate, via a circuit driven by that GPIO pin, PTT in the radio's 6-pin MiniDIN DATA connector. 
 
-If `--rig digirig` is used and the application receives an RPC command to activate PTT, it will assert __RTS__ on the serial port to the [DigiRig](https://digirig.net). In the [DigiRig](https://digirig.net) device, when the computer asserts __RTS__, the DigiRig activates a circuit that turns on PTT in the radio's DATA connector; **RTS** is not asserted on the *radio's* PC port in this case. The special DigiRig-to-radio-PC-port cable has RTS looped back to CTS so CAT control functions work. See the [PTT Control](#ptt-control) section for more information.
+If `--ptt digirig[@digirig-serial-port]` is used and the application receives an RPC-XML command to activate PTT, it will assert __RTS__ on the serial port to the [DigiRig](https://digirig.net). In the [DigiRig](https://digirig.net) device, when the computer asserts __RTS__, the DigiRig activates a circuit that turns on PTT in the radio's DATA connector; **RTS** is not asserted on the *radio's* PC port in this case. The special DigiRig-to-radio-PC-port cable has RTS looped back to CTS so CAT control functions work. See the [PTT Control](#ptt-control) section for more information. If you are using a separate serial cable for the `710` script and the digirig for audio, then append `@digirig-serial-port` to `--ptt digirig` to tell the script to assert RTS on `digirig-serial-port`.
 
-If `--rig cm108[:1-8]` is used and the application receives an RPC command to activate PTT, it will activate a GPIO pin on a CM108/CM119 sound card such as found in the [Masters Communications](http://www.masterscommunications.com) DRA series products. The GPIO pin used can be specified (`--rig com108:4`, for example, will use GPIO 4). If not specified, GPIO 3 will be used as it is the most common pin for PTT control in these sound devices, including the DRA products. If multiple CM108/CM119 devices are connected to the computer, the first one the application finds will be used.
+If `--ptt cm108[@index][:1-8]` is used and the application receives an RPC command to activate PTT, it will activate a GPIO pin on a CM108/CM119 sound card such as found in the [Masters Communications](http://www.masterscommunications.com) DRA series products. The GPIO pin used can be specified (`--rig com108:4`, for example, will use GPIO 4). If not specified, GPIO 3 will be used as it is the most common pin for PTT control in these sound devices, including the DRA products. If multiple CM108/CM119 devices are connected to the computer, the last one the application finds will be used unless you specify an index (`@index`). For example: `--cm108@2`. You can see a list of the CM1xx sound cards, and associated index attached to the computer by running `710.py --cm108_devices` or `710.exe --cm108_devices`.
 
 ## Releases
 
@@ -90,7 +90,7 @@ The releases include `710.exe`, which was built using `pyinstaller` and Python 3
 
 ## Recent significant changes
 
-1. Supports PTT using CM108/CM119 sound cards with GPIO (DRA series sound cards, for example).
+1. Supports PTT using CM108/CM119 sound cards with GPIO (DRA series sound cards, for example). Use `--ptt cm108`.
 1. GUI looks more uniform across Linux, MacOS and Windows.
 1. Improvements to the way serial ports are discovered in Windows.
 1. Supports [DigiRig](https://digirig.net).
@@ -152,7 +152,7 @@ The releases include `710.exe`, which was built using `pyinstaller` and Python 3
 
 1. Connect a serial cable between the radio's Mini-DIN8 **PC** port and your PC. An RT Systems programming cable will work, as will a Kenwood PG-5G cable or equivalent. 
 	
-	If using the [DigiRig](https://digirig.net)'s SERIAL port for CAT control, then connect the *special* serial cable between the radio's 8-pin MiniDIN **PC** port and the DigiRig's **SERIAL** port. This special cable has the RTS pin looped back to the CTS pin on the radio side of the cable.
+	If using the [DigiRig](https://digirig.net)'s SERIAL port for CAT control, then connect the *special* serial cable between the radio's 8-pin MiniDIN **PC** port and the DigiRig's **SERIAL** port. This special cable has the RTS pin looped back to the CTS pin on the radio side of the cable. If you are using this special cable and the DigiRig, you must also use the `--norts` option to disable RTS.
 
 1. The script will use the first serial port it finds by default. Override this behavior by using the `-p <port>` argument.
 
@@ -172,21 +172,23 @@ or, if using the binary on Windows:
 
 The output will be similar to this:
 ```
-usage: 710.py [-h] [-v] [-p {/dev/gps0,/dev/kenwoodTM-D710G,/dev/ttyUSB0,/dev/serial0,/dev/serial1,/dev/ttyS0,/dev/ttyAMA0}]
-              [-b {300,1200,2400,4800,9600,19200,38400,57600}] [-s] [-l x:y] [-x {1024-65535}]
-              [-r {none,cat,cm108,cm108:1,cm108:2,cm108:3,cm108:4,cm108:5,cm108:6,cm108:7,cm108:8,digirig,left,right,4,5,6,12,13,16,17,18,19,20,21,22,23,24,25,26,27,digirig@/dev/gps0,digirig@/dev/kenwoodTM-D710G,digirig@/dev/ttyUSB0,digirig@/dev/serial0,digirig@/dev/serial1,digirig@/dev/ttyS0,digirig@/dev/ttyAMA0}]
-              [-c COMMAND]
+usage: 710.exe [-h] [-v] [-p {COM4}] [--norts] [-b {300,1200,2400,4800,9600,19200,38400,57600}] [-s] [--cm108_devices]
+               [-l x:y] [-x {1024-65535}]
+               [-r {none,digirig,cm108,cm108:1,cm108:2,cm108:3,cm108:4,cm108:5,cm108:6,cm108:7,cm108:8}] [-c COMMAND]
 
 CAT control for Kenwood TM-D710G/TM-V71A
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   -v, --version         show program's version number and exit
-  -p {/dev/gps0,/dev/kenwoodTM-D710G,/dev/ttyUSB0,/dev/serial0,/dev/serial1,/dev/ttyS0,/dev/ttyAMA0}, --port {/dev/gps0,/dev/kenwoodTM-D710G,/dev/ttyUSB0,/dev/serial0,/dev/serial1,/dev/ttyS0,/dev/ttyAMA0}
-                        Serial port connected to radio (default: /dev/gps0)
+  -p {COM4}, --port {COM4}
+                        Serial port connected to radio (default: COM4)
+  --norts               Disable RTS on serial port. Required when
+                        DigiRig serial port is connected to radio. (default: False)
   -b {300,1200,2400,4800,9600,19200,38400,57600}, --baudrate {300,1200,2400,4800,9600,19200,38400,57600}
                         Serial port speed (must match radio!) (default: 57600)
   -s, --small           Smaller GUI window (default: False)
+  --cm108_devices       List attached C-Media CM1xx devices. (default: False)
   -l x:y, --location x:y
                         x:y: Initial x and y position (in pixels)
                         of upper left corner of GUI. (default: None)
@@ -194,47 +196,49 @@ optional arguments:
                         TCP port on which to listen for XML-RPC
                         rig control calls from clients such as
                         Fldigi or Hamlib rigctl[d]. (default: 12345)
-  -r {none,cat,cm108,cm108:1,cm108:2,cm108:3,cm108:4,cm108:5,cm108:6,cm108:7,cm108:8,digirig,left,right,4,5,6,12,13,16,17,18,19,20,21,22,23,24,25,26,27,digirig@/dev/gps0,digirig@/dev/kenwoodTM-D710G,digirig@/dev/ttyUSB0,digirig@/dev/serial0,digirig@/dev/serial1,digirig@/dev/ttyS0,digirig@/dev/ttyAMA0}, --rig {none,cat,cm108,cm108:1,cm108:2,cm108:3,cm108:4,cm108:5,cm108:6,cm108:7,cm108:8,digirig,left,right,4,5,6,12,13,16,17,18,19,20,21,22,23,24,25,26,27,digirig@/dev/gps0,digirig@/dev/kenwoodTM-D710G,digirig@/dev/ttyUSB0,digirig@/dev/serial0,digirig@/dev/serial1,digirig@/dev/ttyS0,digirig@/dev/ttyAMA0}
-                        PTT device to use if you want to control 
-                        PTT via an XML-RPC 'rig.set_ptt' call.
-                        Pi users can specify the BCM GPIO pin number
-                        driving your PTT circuit. Nexus DR-X Pi users:
+  -r {none,digirig,cm108,cm108:1,cm108:2,cm108:3,cm108:4,cm108:5,cm108:6,cm108:7,cm108:8}, --ptt {none,digirig,cm108,cm108:1,cm108:2,cm108:3,cm108:4,cm108:5,cm108:6,cm108:7,cm108:8}
+                        How to handle XML-RPC 'rig.set_ptt' calls.
+
+                        Raspberry Pi users can specify the BCM GPIO pin
+                        number driving your PTT circuit. Nexus DR-X Pi users:
                         Use 'left' or 'right'. This will map to GPIO
                         pin 12 for the left radio and pin 23 for the right.
-                        
-                        'none' means that 'rig.set_ptt' calls will be ignored
-                        (meaning you'll control PTT by some other means).
-                        
+
+                        'none' (the default) means that 'rig.set_ptt' calls
+                        will be ignored (meaning you'll control PTT by
+                        some other means).
+
                         'digirig[@digirig-serial-port]':
                         'digirig' is for use with the DigiRig sound card
-                        and associated special serial cable between the
-                        radio and the DigiRig serial port. Disables
-                        RTS on the serial port because on the DigiRig,
-                        RTS controls PTT via a separate circuit.
+                        and (optionally) the associated special serial cable
+                        between the radio and the DigiRig serial port.
                         'digirig@<digirig-serial-port>' is for use when the
-                        controller uses a different serial port than the
-                        DigiRig sound card. In other words, there's no
-                        connection from the DigiRig serial port to the radio.
-                        In that case when an XML-RPC 'rig.set_ptt' call is
-                        received, the controller activates RTS on
-                        <digirig-serial-port>, which triggers PTT through the
-                        6-pin minDIN connector.
-                        
-                        'cm108[:1-8]' will activate a GPIO on CM108/CM119
-                        sound interfaces for PTT. Masters Communications
-                        DRA series of sound cards use this chip and PTT.
-                        You can specify the GPIO pin by appending ':x'
-                        to 'cm108' where x is 1 through 8 inclusive.
-                        'cm108' by itself will use GPIO 3, the most
-                        commonly used GPIO for CM108/CM119 PTT.
+                        controller is connected via a different serial port
+                        than the DigiRig. In that case when an XML-RPC
+                        'rig.set_ptt' call is received, the controller
+                        activates RTS on <digirig-serial-port>, which
+                        triggers PTT through the 6-pin minDIN connector.
+
+                        'cm108[@index][:1-8]' will activate a GPIO pin on
+                        CM108/CM119 sound interfaces for PTT. Masters
+                        Communications DRA series of sound cards use this
+                        chip and PTT mechanism.
+
                         If more than one CM108/CM119 sound card is attached,
-                        the first one found will be used.
-                        
+                        the last one found will be used unless you specify
+                        '@index'. You can determine the index by running this
+                        program one time with only the '--cm108_devices' argument
+                        to see a list of attached and compatible cm1xx devices.
+
+                        You can specify the CM108 GPIO pin by appending ':x'
+                        where x is 1 through 8 inclusive. 'cm108' by itself
+                        will use GPIO 3, the most commonly used CM1xx GPIO pin.
+
                         'cat' will send the 'TX' or 'RX' CAT command to the
                         radio to control PTT. Note that this will transmit
-                        on the side on which PTT is set and will transmit
+                        on the side on which 'PTT' is set and will transmit
                         mic audio, *not* DATA port audio!
-                        
+
                          (default: none)
   -c COMMAND, --command COMMAND
                         CAT command to send to radio (no GUI) (default: None)
@@ -257,19 +261,19 @@ When an RPC (Remote Procedure Call) to control PTT is received from a client app
 
 On some Linux hosts, particularly Raspberry Pis, you can select a BCM GPIO pin number `(-r <pin>)` as described in the help output above. This feature is handy if you have configured a GPIO pin to drive an external circuit that controls PTT on the radio's 6-pin MiniDIN DATA connector. When an RPC call to control PTT comes from a client application, the script will then set the configured GPIO pin to high to activate the PTT circuit and low to deactivate the PTT curcuit.
 
-If you're using the [DigiRig](https://digirig.net) and associated special serial cable between the DigiRig and radio for CAT control, use the `-r digirig` setting. This will allow simultanenous CAT control of the radio via the DigiRig's SERIAL port and PTT control of the radio via the DigiRig's AUDIO port connected to the radio's DATA port. If you are using the DigiRig for audio and PTT only and using a *separate* serial connection from your computer to the radio for CAT control, you can specify the DigiRig's serial port for PTT purposes by appending `@<digirig-serial-port>` to `-r digirig`. For example, say your radio is connected to your computer for CAT control using a serial to USB adapter on `/dev/ttyUSB0` and your DigiRig appears on your computer as `/dev/ttyUSB1`. Start `710` something like in this example:
+If you're using the [DigiRig](https://digirig.net) and associated special serial cable between the DigiRig and radio for CAT control, use the `--ptt digirig` setting. This will allow simultanenous CAT control of the radio via the DigiRig's SERIAL port and PTT control of the radio via the DigiRig's AUDIO port connected to the radio's DATA port. If you are using the DigiRig for audio and PTT only and using a *separate* serial connection from your computer to the radio for CAT control, you can specify the DigiRig's serial port for PTT purposes by appending `@<digirig-serial-port>` to `--ptt digirig`. For example, say your radio is connected to your computer for CAT control using a serial to USB adapter on `/dev/ttyUSB0` and your DigiRig appears on your computer as `/dev/ttyUSB1`. Start `710` something like in this example:
 
-	710.py -r digirig@/dev/ttyUSB1 -p /tty/USB0
+	710.py --ptt digirig@/dev/ttyUSB1 -p /tty/USB0
 
 or in Windows (for example):
 
-	710.exe -r digirig@COM2 -p COM1
+	710.exe --ptt digirig@COM2 -p COM1
 	
 When `710` is run that way and receives an RPC command from Fldigi (for example) to activate PTT, `710` will assert `RTS` on `/dev/ttyUSB1` (`COM2` in a Windows example) which will activate PTT on the DigiRig's AUDIO port through to the radio on radio's 6-pin miniDIN data port.
 
-If `-r cm108[:1-8]` is used, when the application receives an RPC to activate PTT it will activate a GPIO pin on a CM108/CM119 sound card such as found in the Masters Communications DRA series of products. The GPIO pin used can be specified (`-r com108:4`, for example, will use GPIO 4). If not specified, GPIO 3 will be used as it is the most common pin for PTT control in these sound devices. If multiple CM108/CM119 devices are connected to the computer, the first one the application finds will be used.
+If `--ptt cm108[:1-8]` is used, when the application receives an RPC to activate PTT it will activate a GPIO pin on a CM108/CM119 sound card such as found in the Masters Communications DRA series of products. The GPIO pin used can be specified (`--ptt com108:4`, for example, will use GPIO 4). If not specified, GPIO 3 will be used as it is the most common pin for PTT control in these sound devices. If multiple CM108/CM119 devices are connected to the computer, the first one the application finds will be used.
 
-If you use the `-r cat` argument, the script will send the Kenwood **TX** and **RX** commands to the radio when RPC calls to control PTT are received from a client application. **IMPORTANT:** TX will activate on whatever side of the radio currently has PTT and mic audio will be transmitted, not audio from the radio's DATA port!
+If you use the `--ptt cat` argument, the script will send the Kenwood **TX** and **RX** commands to the radio when RPC calls to control PTT are received from a client application. **IMPORTANT:** TX will activate on whatever side of the radio currently has PTT and mic audio will be transmitted, not audio from the radio's DATA port!
 
 ### Linux and Mac: 710.py and 710.sh
 

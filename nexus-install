@@ -2,7 +2,9 @@
 #
 #
 VERSION="1.2.0"
-sudo apt install -y libusb-dev python3-hidapi
+#sudo apt install -y libusb-dev python3-hidapi
+sudo apt install -y libusb-dev python3-hid
+
 if ! grep -q 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0d8c"' /etc/udev/rules.d/*.rules
 then
 	cat > /tmp/udev.rules.temp <<EOF

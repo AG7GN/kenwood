@@ -1,5 +1,5 @@
 # Kenwood CAT control for TM-D710G and TM-V71A
-VERSION 20230827
+VERSION 20230827c
 
 This script allows the user to control various parameters on the Kenwood TM-V71A and TM-D710G radios via the **PC** serial port on the back of the radio main unit (not the control panel). Kenwood does not officially support CAT on these radios, but the commands have been [extensively documented by LA3QMA](https://github.com/LA3QMA/TM-V71_TM-D710-Kenwood). 
 
@@ -32,7 +32,7 @@ The Windows `.exe` might be problematic to run on your PC since they are unsigne
 
 1. Install supporting packages (`apt` installation commands shown; use your distribution's package manager):
 
-		sudo apt install libusb-dev python3-hidapi
+		sudo apt install libusb-dev python3-hid
 
 1. Create a file `/etc/udev/rules.d/99-cmedia-gpio.rules` (root privileges needed) with these lines:
 		
@@ -148,7 +148,7 @@ The releases include `710.exe`, which was built using `pyinstaller` and Python 3
 	|TM-D710G|920|PC PORT BAUDRATE|57600\*| 
 	|TM-V71A|519|PC.SPD|57600\*|
 
-	The script uses `57600` as the default*, but you can change it using the `-s <speed>` argument. The speed must match the radio's setting.
+	The script uses `57600` as the default*, but you can change it using the `-b <speed>` argument. The speed must match the radio's setting.
 
 1. Connect a serial cable between the radio's Mini-DIN8 **PC** port and your PC. An RT Systems programming cable will work, as will a Kenwood PG-5G cable or equivalent. 
 	
